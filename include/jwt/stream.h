@@ -128,6 +128,18 @@ inline int32_t jwtWriterWrite(JwtWriter writer, const char* buffer,
     return writer.pfnWrite(writer.impl, buffer, charsToWrite, charsWritten);
 }
 
+/**
+ * @brief Reads bytes from some source into the given buffer.
+ * @param reader The source reader to read from.
+ * @param buffer The buffer to read into.
+ * @param charsToRead The number of characters to attempt to read.
+ * @param charsRead A pointer to a variable where the number of chars
+ * actually read will be stored.
+ * @return 0 on success, -1 on error or end of stream.
+ */
+int32_t jwtWriterWriteAll(JwtWriter reader, const char* buffer,
+                          size_t charsToWrite, size_t* charsWritten);
+
 #ifdef __cplusplus
 }
 #endif
