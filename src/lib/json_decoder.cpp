@@ -1,7 +1,7 @@
 /**
  * Josh Wallentine
  * Created 9/12/25
- * Modified 9/14/25
+ * Modified 9/30/25
  *
  * Partial implementation of include/jwt/json.h
  * See also json.cpp and json_encoder.cpp
@@ -309,15 +309,11 @@ JwtJsonParseResult parseArray(JwtJsonElement* output, JwtReader reader,
 
     JwtJsonArray array = jwtJsonArrayCreate();
 
-    size_t count = 0;
     while (true) {
 
-        JwtJsonElement element = {};
-        CHECK(parseJsonElement(&element, reader, lastRead));
-
-        jwtJsonArrayPush(&array, element);
-
-        count++;
+        JwtJsonElement* element =
+            static_cast<JwtJsonElement*>(jwtListPush(&array));
+        CHECK(parseJsonElement(element, reader, lastRead));
 
         if (*lastRead == ']') {
             break;

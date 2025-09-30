@@ -111,7 +111,7 @@ TEST(JsonDecoder, ArrayEmpty) {
     ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_ARRAY, element.type);
 
-    ASSERT_EQ(0, element.array.length);
+    ASSERT_EQ(0, element.array.size);
 
     jwtJsonElementDestroy(&element);
 }
@@ -125,7 +125,7 @@ TEST(JsonDecoder, ArraySingle) {
     ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_ARRAY, element.type);
 
-    ASSERT_EQ(1, element.array.length);
+    ASSERT_EQ(1, element.array.size);
 
     JwtJsonElement first = jwtJsonArrayGet(&element.array, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, first.type);
@@ -143,7 +143,7 @@ TEST(JsonDecoder, ArrayDouble) {
     ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_ARRAY, element.type);
 
-    ASSERT_EQ(2, element.array.length);
+    ASSERT_EQ(2, element.array.size);
 
     JwtJsonElement first = jwtJsonArrayGet(&element.array, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, first.type);
@@ -166,7 +166,7 @@ TEST(JsonDecoder, ArrayComplex) {
     ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_ARRAY, element.type);
 
-    ASSERT_EQ(5, element.array.length);
+    ASSERT_EQ(5, element.array.size);
 
     JwtJsonElement first = jwtJsonArrayGet(&element.array, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, first.type);
@@ -184,7 +184,7 @@ TEST(JsonDecoder, ArrayComplex) {
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_ARRAY, fourth.type);
 
     JwtJsonArray subArray = jwtJsonElementAsArray(fourth);
-    ASSERT_EQ(3, subArray.length);
+    ASSERT_EQ(3, subArray.size);
     ASSERT_EQ(1, jwtJsonArrayGetUint(&subArray, 0));
     ASSERT_EQ(2, jwtJsonArrayGetUint(&subArray, 1));
     ASSERT_EQ(3, jwtJsonArrayGetUint(&subArray, 2));
@@ -246,7 +246,7 @@ TEST(JsonDecoder, ObjectComplex) {
     ASSERT_STREQ("Hello", jwtJsonObjectGetString(&obj, "str").data);
 
     JwtJsonArray subArray = jwtJsonObjectGetArray(&obj, "array");
-    ASSERT_EQ(3, subArray.length);
+    ASSERT_EQ(3, subArray.size);
     ASSERT_EQ(1, jwtJsonArrayGetUint(&subArray, 0));
     ASSERT_EQ(2, jwtJsonArrayGetUint(&subArray, 1));
     ASSERT_EQ(3, jwtJsonArrayGetUint(&subArray, 2));

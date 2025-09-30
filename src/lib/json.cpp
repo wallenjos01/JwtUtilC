@@ -1,86 +1,28 @@
 /**
  * Josh Wallentine
  * Created 9/11/25
+ * Modified 9/30/25
  *
  * Partial implementation of include/jwt/json.h
  * See also json_decoder.cpp and json_encoder.cpp
  */
 
-#include <cstdlib>
 #include <jwt/core.h>
 #include <jwt/json.h>
+
+#include <cstdlib>
 #include <utility>
 
 #include "hash.hpp"
 
 namespace {} // namespace
 
-JwtJsonArray jwtJsonArrayCreate() {
-    JwtJsonArray out = {};
-    out.length = 0;
-    out.capacity = 0;
-    out.data = nullptr;
-    return out;
-}
 void jwtJsonArrayDestroy(JwtJsonArray* array) {
-    for (auto i = 0; i < array->length; i++) {
-        jwtJsonElementDestroy(&array->data[i]);
+    for (auto i = 0; i < array->size; i++) {
+        jwtJsonElementDestroy(
+            static_cast<JwtJsonElement*>(jwtListGet(array, i)));
     }
-    if (array->data) {
-        free(array->data);
-        array->data = nullptr;
-    }
-    array->capacity = 0;
-    array->length = 0;
-}
-
-JwtJsonElement jwtJsonArrayGet(JwtJsonArray* array, size_t index) {
-    if (index >= array->length) {
-        return {.type = JWT_JSON_ELEMENT_TYPE_NULL, .boolean = false};
-    }
-    return array->data[index];
-}
-void jwtJsonArrayPush(JwtJsonArray* array, JwtJsonElement element) {
-    if (array->length == array->capacity) {
-        // Realloc
-        size_t newCapacity;
-        if (array->capacity > 0) {
-            newCapacity = array->capacity * 2;
-        } else {
-            newCapacity = 2;
-        }
-
-        size_t toAlloc = newCapacity * sizeof(JwtJsonElement);
-
-        void* newData;
-        if (array->data == nullptr) {
-            newData = malloc(toAlloc);
-        } else {
-            newData = realloc(array->data, toAlloc);
-        }
-
-        array->capacity = newCapacity;
-        array->data = static_cast<JwtJsonElement*>(newData);
-    }
-
-    array->data[array->length++] = element;
-}
-void jwtJsonArraySet(JwtJsonArray* array, JwtJsonElement element,
-                     size_t index) {
-    if (index >= array->length) {
-        return;
-    }
-    array->data[index] = element;
-}
-void jwtJsonArrayRemove(JwtJsonArray* array, size_t index) {
-    if (index > array->length) {
-        return;
-    }
-
-    jwtJsonElementDestroy(&array->data[index]);
-    memmove(array->data + index - 1, array->data + index,
-            array->length - index);
-    array->length -= 1;
+    jwtListDestroy(array);
 }
 
 JwtJsonObject jwtJsonObjectCreate() { return jwtJsonObjectCreateSized(16); }
@@ -278,7 +220,7 @@ bool jwtJsonElementAsBool(JwtJsonElement element) {
 }
 JwtJsonArray jwtJsonElementAsArray(JwtJsonElement element) {
     if (element.type != JWT_JSON_ELEMENT_TYPE_ARRAY)
-        return {.length = 0, .capacity = 0, .data = nullptr};
+        return jwtJsonArrayCreate();
     return element.array;
 }
 JwtJsonObject jwtJsonElementAsObject(JwtJsonElement element) {

@@ -38,11 +38,12 @@ struct JwtJsonObjectEntry;
 /**
  * Represents a JSON array, which can contain any number of JSON elements
  */
-typedef struct JwtJsonArray {
-    size_t length;
-    size_t capacity;
-    JwtJsonElement* data;
-} JwtJsonArray;
+// typedef struct JwtJsonArray {
+//     size_t length;
+//     size_t capacity;
+//     JwtJsonElement* data;
+// } JwtJsonArray;
+typedef JwtList JwtJsonArray;
 
 /**
  * Represents a JSON object, which is a key-value mapping from strings to JSON
@@ -178,7 +179,11 @@ JwtJsonObject jwtJsonElementAsObject(JwtJsonElement element);
  * jwtJsonArrayDestroy()
  * @return An empty JSON array.
  */
-JwtJsonArray jwtJsonArrayCreate();
+inline JwtJsonArray jwtJsonArrayCreate() {
+    JwtJsonArray out = {};
+    jwtListCreate(&out, sizeof(JwtJsonElement));
+    return out;
+}
 
 /**
  * @brief Destroys the given JSON array.
@@ -192,7 +197,7 @@ void jwtJsonArrayDestroy(JwtJsonArray* array);
  * @param array The array to get the length for.
  * @return The array's size
  */
-inline size_t jwtJsonArrayLength(JwtJsonArray* array) { return array->length; }
+inline size_t jwtJsonArrayLength(JwtJsonArray* array) { return array->size; }
 
 /**
  * @brief Gets an element in the given array at the given index.
@@ -201,7 +206,9 @@ inline size_t jwtJsonArrayLength(JwtJsonArray* array) { return array->length; }
  * @param index The element index to get.
  * @return An JSON element.
  */
-JwtJsonElement jwtJsonArrayGet(JwtJsonArray* array, size_t index);
+inline JwtJsonElement jwtJsonArrayGet(JwtJsonArray* array, size_t index) {
+    return *static_cast<JwtJsonElement*>(jwtListGet(array, index));
+}
 
 /**
  * @brief Gets an element in the given array at the given index as a string.
@@ -285,7 +292,9 @@ inline JwtJsonObject jwtJsonArrayGetObject(JwtJsonArray* array, size_t index) {
  * @param array The array to push onto.
  * @param element The element to push
  */
-void jwtJsonArrayPush(JwtJsonArray* array, JwtJsonElement element);
+inline void jwtJsonArrayPush(JwtJsonArray* array, JwtJsonElement element) {
+    *static_cast<JwtJsonElement*>(jwtListPush(array)) = element;
+}
 
 /**
  * @brief Pushes the given string onto the given array.
@@ -367,7 +376,11 @@ inline void jwtJsonArrayPushObject(JwtJsonArray* array, JwtJsonObject value) {
  * @param element The new element
  * @param index The index of the element to change
  */
-void jwtJsonArraySet(JwtJsonArray* array, JwtJsonElement element, size_t index);
+inline void jwtJsonArraySet(JwtJsonArray* array, JwtJsonElement element,
+                            size_t index) {
+
+    *static_cast<JwtJsonElement*>(jwtListGet(array, index)) = element;
+}
 
 /**
  * @brief Changes the element at the given array index to be the given string.
@@ -480,7 +493,9 @@ inline void jwtJsonArraySetObject(JwtJsonArray* array, JwtJsonObject value,
  * @param array The array to remove from.
  * @param index The index of the element to remove.
  */
-void jwtJsonArrayRemove(JwtJsonArray* array, size_t index);
+inline void jwtJsonArrayRemove(JwtJsonArray* array, size_t index) {
+    jwtListRemove(array, index);
+}
 
 /**
  * @brief Creates an empty JSON object.

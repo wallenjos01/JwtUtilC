@@ -3,7 +3,7 @@
 
 /**
  * @brief Computes a hash for the given string
- * @param data the string data to consider
+ * @param data The string data to consider
  * @param length The length of the string data
  * @return A hash of the data
  */

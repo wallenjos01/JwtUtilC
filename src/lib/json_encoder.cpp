@@ -1,6 +1,7 @@
 /**
  * Josh Wallentine
  * Created 9/14/25
+ * Modified 9/30/25
  *
  * Partial implementation of include/jwt/json.h
  * See also json_decoder.cpp and json.cpp
@@ -95,7 +96,7 @@ int32_t jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer) {
         CHECK(jwtWriterWrite(writer, "[", 1, nullptr));
 
         JwtJsonArray arr = jwtJsonElementAsArray(*element);
-        for (auto i = 0; i < arr.length; i++) {
+        for (auto i = 0; i < arr.size; i++) {
             if (i > 0) {
                 CHECK(jwtWriterWrite(writer, ",", 1, nullptr));
             }

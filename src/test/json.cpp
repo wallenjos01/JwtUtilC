@@ -32,7 +32,7 @@ TEST(JsonArray, Bool) {
     JwtJsonArray obj = jwtJsonArrayCreate();
     jwtJsonArrayPushBool(&obj, true);
 
-    ASSERT_EQ(1, obj.length);
+    ASSERT_EQ(1, obj.size);
 
     JwtJsonElement element = jwtJsonArrayGet(&obj, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_BOOLEAN, element.type);
@@ -45,7 +45,7 @@ TEST(JsonArray, Int) {
     JwtJsonArray obj = jwtJsonArrayCreate();
     jwtJsonArrayPushInt(&obj, -42);
 
-    ASSERT_EQ(1, obj.length);
+    ASSERT_EQ(1, obj.size);
 
     JwtJsonElement element = jwtJsonArrayGet(&obj, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, element.type);
@@ -59,7 +59,7 @@ TEST(JsonArray, Uint) {
     JwtJsonArray obj = jwtJsonArrayCreate();
     jwtJsonArrayPushUint(&obj, 42);
 
-    ASSERT_EQ(1, obj.length);
+    ASSERT_EQ(1, obj.size);
 
     JwtJsonElement element = jwtJsonArrayGet(&obj, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, element.type);
@@ -73,7 +73,7 @@ TEST(JsonArray, Float) {
     JwtJsonArray obj = jwtJsonArrayCreate();
     jwtJsonArrayPushDouble(&obj, 12.25);
 
-    ASSERT_EQ(1, obj.length);
+    ASSERT_EQ(1, obj.size);
 
     JwtJsonElement element = jwtJsonArrayGet(&obj, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, element.type);
@@ -92,7 +92,7 @@ TEST(JsonArray, String) {
     ASSERT_EQ(1, jwtJsonArrayLength(&arr));
     JwtJsonElement element = jwtJsonArrayGet(&arr, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_STRING, element.type);
-    ASSERT_TRUE(strcmp("Hello", element.string.data) == 0);
+    ASSERT_STREQ("Hello", element.string.data);
 
     jwtJsonArrayDestroy(&arr);
 }
@@ -238,10 +238,9 @@ TEST(JsonObject, Complex) {
 
     JwtJsonElement subArrayElement = jwtJsonObjectGet(&obj, "array");
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_ARRAY, subArrayElement.type);
-    ASSERT_EQ(2, jwtJsonElementAsArray(subArrayElement).length);
-    ASSERT_EQ(0,
-              strcmp("World",
-                     jwtJsonArrayGet(&subArrayElement.array, 0).string.data));
+    ASSERT_EQ(2, jwtJsonElementAsArray(subArrayElement).size);
+    ASSERT_STREQ("World",
+                 jwtJsonArrayGet(&subArrayElement.array, 0).string.data);
     ASSERT_EQ(-6000, jwtJsonArrayGet(&subArrayElement.array, 1).number.i64);
 
     JwtJsonElement subObjectElement = jwtJsonObjectGet(&obj, "obj");
@@ -249,6 +248,8 @@ TEST(JsonObject, Complex) {
                         jwtJsonElementAsString(
                             jwtJsonObjectGet(&subObjectElement.object, "sub"))
                             .data));
+
+    jwtJsonObjectDestroy(&obj);
 }
 
 TEST(JsonObjectIterator, Empty) {

@@ -84,6 +84,56 @@ uint64_t jwtNumericAsUint(JwtNumeric number);
  */
 double jwtNumericAsDouble(JwtNumeric number);
 
+/**
+ * Represents a dynamic array.
+ */
+typedef struct JwtList {
+    void* head;
+    size_t size;
+    size_t capacity;
+    size_t step;
+} JwtList;
+
+/**
+ * @brief Creates a new list.
+ * @param list A pointer to the memory to store the newly created list.
+ * @param step The size of each item in the list
+ */
+void jwtListCreate(JwtList* list, size_t step);
+
+/**
+ * @brief Destroys a list
+ * @param list A pointer to the list to destroy
+ */
+void jwtListDestroy(JwtList* list);
+
+/**
+ * @brief Pushes a new item onto the list.
+ * @param list A pointer to the list to expand.
+ * @return A pointer to the newly accessible memory.
+ */
+void* jwtListPush(JwtList* list);
+
+/**
+ * @brief Gets the item at the given index of the list.
+ * @param list A pointer to the list to query.
+ * @param index The index to get at.
+ */
+void* jwtListGet(const JwtList* list, size_t index);
+
+/**
+ * @brief Removes the last item from the list.
+ * @param list The list to pop from.
+ */
+void jwtListPop(JwtList* list);
+
+/**
+ * @brief Removes a particular item from the list.
+ * @param list The list to pop from.
+ * @param index The index of the item to remove.
+ */
+void jwtListRemove(JwtList* list, size_t index);
+
 #ifdef __cplusplus
 }
 #endif
