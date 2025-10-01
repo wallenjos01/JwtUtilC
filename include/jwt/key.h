@@ -12,6 +12,7 @@ extern "C" {
  * @see https://www.rfc-editor.org/rfc/rfc7518.html
  */
 enum JwtAlgorithm : uint8_t {
+    JWT_ALGORITHM_UNKNOWN = 0,
     JWT_ALGORITHM_NONE,
     // Signing Algorithms
     JWT_ALGORITHM_HS256,
@@ -44,6 +45,12 @@ enum JwtAlgorithm : uint8_t {
     JWT_ALGORITHM_PBES_HS256_A128KW,
     JWT_ALGORITHM_PBES_HS384_A192KW,
     JWT_ALGORITHM_PBES_HS512_A256KW,
+    JWT_ALGORITHM_A128CBC_HS256,
+    JWT_ALGORITHM_A192CBC_HS384,
+    JWT_ALGORITHM_A256CBC_HS512,
+    JWT_ALGORITHM_A128GCM,
+    JWT_ALGORITHM_A192GCM,
+    JWT_ALGORITHM_A256GCM,
 };
 
 /**
@@ -61,6 +68,7 @@ enum JwtKeyType : uint8_t {
  * @see https://www.rfc-editor.org/rfc/rfc7517.html
  */
 enum JwtKeyUse : uint8_t {
+    JWT_KEY_USE_UNKNOWN = 0,
     JWT_KEY_USE_SIGNING,
     JWT_KEY_USE_ENCRYPTION,
 };
@@ -130,6 +138,11 @@ typedef struct JwtKey {
     void* keyData;
 
     /**
+     * @brief X.509 Certificate info. May be null.
+     */
+    JwtCertInfo* cert;
+
+    /**
      * @brief The type of key.
      */
     JwtKeyType type;
@@ -145,12 +158,20 @@ typedef struct JwtKey {
     JwtAlgorithm algorithm;
 
     /**
-     * A bitset of valid operations to use this key for.
+     * @brief A bitset of valid operations to use this key for.
      * @see JwtKeyOperation
      */
     uint8_t operations;
 
 } JwtKey;
+
+enum JwtKeyParseResult {
+    JWT_KEY_PARSE_RESULT_SUCCESS = 0,
+    JWT_KEY_PARSE_RESULT_UNKNOWN_KEY_TYPE = -1,
+    JWT_KEY_PARSE_RESULT_UNKNOWN_KEY_USE = -2,
+    JWT_KEY_PARSE_RESULT_UNKNOWN_ALGORITHM = -3,
+    JWT_KEY_PARSE_RESULT_UNKNOWN_OPERATION = -4,
+};
 
 /**
  * @brief Attempts to parse a JWK from the given JSON object
@@ -158,7 +179,7 @@ typedef struct JwtKey {
  * @param obj The object to parse
  * @return 0 on success, or some error code
  */
-int32_t jwtKeyParse(JwtKey* key, JwtJsonObject obj);
+JwtKeyParseResult jwtKeyParse(JwtKey* key, JwtJsonObject obj);
 
 /**
  * @brief Creates a new JWK with the given algorithm and operations
@@ -174,6 +195,8 @@ int32_t jwtKeyGenerate(JwtKey* key, JwtAlgorithm algorithm, uint8_t operations);
  * @param key The key to destroy
  */
 void jwtKeyDestroy(JwtKey* key);
+
+void deleteme_test();
 
 #ifdef __cplusplus
 }

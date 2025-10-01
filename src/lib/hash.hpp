@@ -14,3 +14,13 @@ constexpr size_t hashString(const char* data, size_t length) {
     }
     return hash;
 }
+
+consteval size_t hashCString(const char* data) {
+
+    size_t i = 0;
+    while (data[i] != 0) {
+        i++;
+    }
+
+    return hashString(data, i);
+}
