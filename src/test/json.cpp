@@ -6,14 +6,16 @@
 
 TEST(JsonArray, Empty) {
 
-    JwtJsonArray arr = jwtJsonArrayCreate();
+    JwtJsonArray arr = {};
+    jwtJsonArrayCreate(&arr);
     ASSERT_EQ(0, jwtJsonArrayLength(&arr));
     jwtJsonArrayDestroy(&arr);
 }
 
 TEST(JsonArray, Push) {
 
-    JwtJsonArray arr = jwtJsonArrayCreate();
+    JwtJsonArray arr = {};
+    jwtJsonArrayCreate(&arr);
     ASSERT_EQ(0, jwtJsonArrayLength(&arr));
 
     jwtJsonArrayPush(&arr,
@@ -29,62 +31,67 @@ TEST(JsonArray, Push) {
 
 TEST(JsonArray, Bool) {
 
-    JwtJsonArray obj = jwtJsonArrayCreate();
-    jwtJsonArrayPushBool(&obj, true);
+    JwtJsonArray arr;
+    jwtJsonArrayCreate(&arr);
+    jwtJsonArrayPushBool(&arr, true);
 
-    ASSERT_EQ(1, obj.size);
+    ASSERT_EQ(1, arr.size);
 
-    JwtJsonElement element = jwtJsonArrayGet(&obj, 0);
+    JwtJsonElement element = jwtJsonArrayGet(&arr, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_BOOLEAN, element.type);
     ASSERT_TRUE(element.boolean);
-    jwtJsonArrayDestroy(&obj);
+    jwtJsonArrayDestroy(&arr);
 }
 
 TEST(JsonArray, Int) {
 
-    JwtJsonArray obj = jwtJsonArrayCreate();
-    jwtJsonArrayPushInt(&obj, -42);
+    JwtJsonArray arr;
+    jwtJsonArrayCreate(&arr);
+    jwtJsonArrayPushInt(&arr, -42);
 
-    ASSERT_EQ(1, obj.size);
+    ASSERT_EQ(1, arr.size);
 
-    JwtJsonElement element = jwtJsonArrayGet(&obj, 0);
+    JwtJsonElement element = jwtJsonArrayGet(&arr, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, element.type);
     ASSERT_EQ(JWT_NUMBER_TYPE_SIGNED, element.number.type);
     ASSERT_EQ(-42, element.number.i64);
-    jwtJsonArrayDestroy(&obj);
+    jwtJsonArrayDestroy(&arr);
 }
 
 TEST(JsonArray, Uint) {
 
-    JwtJsonArray obj = jwtJsonArrayCreate();
-    jwtJsonArrayPushUint(&obj, 42);
+    JwtJsonArray arr;
+    jwtJsonArrayCreate(&arr);
+    jwtJsonArrayPushUint(&arr, 42);
 
-    ASSERT_EQ(1, obj.size);
+    ASSERT_EQ(1, arr.size);
 
-    JwtJsonElement element = jwtJsonArrayGet(&obj, 0);
+    JwtJsonElement element = jwtJsonArrayGet(&arr, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, element.type);
     ASSERT_EQ(JWT_NUMBER_TYPE_UNSIGNED, element.number.type);
     ASSERT_EQ(42, element.number.u64);
-    jwtJsonArrayDestroy(&obj);
+    jwtJsonArrayDestroy(&arr);
 }
 
 TEST(JsonArray, Float) {
 
-    JwtJsonArray obj = jwtJsonArrayCreate();
-    jwtJsonArrayPushDouble(&obj, 12.25);
+    JwtJsonArray arr;
+    jwtJsonArrayCreate(&arr);
+    jwtJsonArrayPushDouble(&arr, 12.25);
 
-    ASSERT_EQ(1, obj.size);
+    ASSERT_EQ(1, arr.size);
 
-    JwtJsonElement element = jwtJsonArrayGet(&obj, 0);
+    JwtJsonElement element = jwtJsonArrayGet(&arr, 0);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, element.type);
     ASSERT_EQ(JWT_NUMBER_TYPE_FLOAT, element.number.type);
     ASSERT_EQ(12.25, element.number.f64);
-    jwtJsonArrayDestroy(&obj);
+    jwtJsonArrayDestroy(&arr);
 }
 
 TEST(JsonArray, String) {
 
-    JwtJsonArray arr = jwtJsonArrayCreate();
+    JwtJsonArray arr = {};
+    jwtJsonArrayCreate(&arr);
     ASSERT_EQ(0, jwtJsonArrayLength(&arr));
 
     jwtJsonArrayPushString(&arr, "Hello");
@@ -99,14 +106,16 @@ TEST(JsonArray, String) {
 
 TEST(JsonObject, Empty) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
     ASSERT_EQ(0, obj.size);
     jwtJsonObjectDestroy(&obj);
 }
 
 TEST(JsonObject, Set) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
     jwtJsonObjectSet(&obj, "test",
                      {.type = JWT_JSON_ELEMENT_TYPE_BOOLEAN, .boolean = true});
 
@@ -120,7 +129,8 @@ TEST(JsonObject, Set) {
 
 TEST(JsonObject, Bool) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetBool(&obj, "test", true);
 
     ASSERT_EQ(1, obj.size);
@@ -130,7 +140,8 @@ TEST(JsonObject, Bool) {
 
 TEST(JsonObject, Int) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetInt(&obj, "test", -42);
 
     ASSERT_EQ(1, obj.size);
@@ -140,7 +151,8 @@ TEST(JsonObject, Int) {
 
 TEST(JsonObject, Uint) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetUint(&obj, "test", 42);
 
     ASSERT_EQ(1, obj.size);
@@ -150,7 +162,8 @@ TEST(JsonObject, Uint) {
 
 TEST(JsonObject, Float) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetDouble(&obj, "test", 12.25);
 
     ASSERT_EQ(1, obj.size);
@@ -160,7 +173,8 @@ TEST(JsonObject, Float) {
 
 TEST(JsonObject, String) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetString(&obj, "test", "Hello");
 
     ASSERT_EQ(1, obj.size);
@@ -170,7 +184,8 @@ TEST(JsonObject, String) {
 
 TEST(JsonObject, Remove) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
 
     jwtJsonObjectSetInt(&obj, "test", -42);
     ASSERT_EQ(1, obj.size);
@@ -184,7 +199,8 @@ TEST(JsonObject, Remove) {
 
 TEST(JsonObject, Overwrite) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
 
     jwtJsonObjectSetInt(&obj, "test", -42);
     ASSERT_EQ(1, obj.size);
@@ -207,19 +223,22 @@ TEST(JsonObject, Overwrite) {
 
 TEST(JsonObject, Complex) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetString(&obj, "str", "Hello");
     jwtJsonObjectSetInt(&obj, "int", 11);
     jwtJsonObjectSetUint(&obj, "uint", 44);
     jwtJsonObjectSetDouble(&obj, "float", -55.1);
     jwtJsonObjectSetBool(&obj, "bool", false);
 
-    JwtJsonArray subArray = jwtJsonArrayCreate();
+    JwtJsonArray subArray = {};
+    jwtJsonArrayCreate(&subArray);
     jwtJsonArrayPushString(&subArray, "World");
     jwtJsonArrayPushInt(&subArray, -6000);
     jwtJsonObjectSetArray(&obj, "array", subArray);
 
-    JwtJsonObject subObject = jwtJsonObjectCreate();
+    JwtJsonObject subObject = {};
+    jwtJsonObjectCreate(&subObject);
     jwtJsonObjectSetString(&subObject, "sub", "object");
     jwtJsonObjectSetObject(&obj, "obj", subObject);
 
@@ -254,7 +273,8 @@ TEST(JsonObject, Complex) {
 
 TEST(JsonObjectIterator, Empty) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
     JwtJsonObjectIterator it = jwtJsonObjectIteratorCreate(&obj);
 
     JwtJsonObjectEntry* ent = jwtJsonObjectIteratorNext(&it);
@@ -265,7 +285,8 @@ TEST(JsonObjectIterator, Empty) {
 
 TEST(JsonObjectIterator, Single) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetInt(&obj, "test", 11);
 
     JwtJsonObjectIterator it = jwtJsonObjectIteratorCreate(&obj);
@@ -281,7 +302,8 @@ TEST(JsonObjectIterator, Single) {
 
 TEST(JsonObjectIterator, Double) {
 
-    JwtJsonObject obj = jwtJsonObjectCreate();
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetInt(&obj, "test1", 11);
     jwtJsonObjectSetInt(&obj, "test2", 12);
 

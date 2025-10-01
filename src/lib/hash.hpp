@@ -7,8 +7,8 @@
  * @param length The length of the string data
  * @return A hash of the data
  */
-constexpr uint32_t hashString(const char* data, size_t length) {
-    uint32_t hash = 5381;
+constexpr size_t hashString(const char* data, size_t length) {
+    size_t hash = 5381;
     for (auto i = 0; i < length; i++) {
         hash = ((hash << 5) + hash) + data[i];
     }

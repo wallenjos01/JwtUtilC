@@ -12,8 +12,27 @@ extern "C" {
  * Represents a generic reader interface.
  */
 typedef struct JwtReader {
+    /**
+     * @brief Some reader implementation
+     */
     void* impl;
+    /**
+     * @brief A pointer to a function which closes the given reader
+     * implementation.
+     * @param impl The reader implementation to close.
+     * Any reads after this is called are invalid.
+     */
     void (*pfnClose)(void* impl);
+
+    /**
+     * @brief A pointer to a function to read from the given reader.
+     * @param impl The reader implementation to read from.
+     * @param buffer The buffer to read into.
+     * @param charsToRead The target number of characters to read.
+     * @param charsRead A pointer to a value which will contain the number of
+     * characters actually read when this call returns.
+     * @return 0 on success, -1 on error.
+     */
     int32_t (*pfnRead)(void* impl, char* buffer, size_t charsToRead,
                        size_t* charsRead);
 } JwtReader;
@@ -79,8 +98,27 @@ int32_t jwtReaderReadAll(JwtReader reader, char* buffer, size_t charsToRead,
  * Represents a generic writer interface.
  */
 typedef struct JwtWriter {
+    /**
+     * @brief Some writer implementation
+     */
     void* impl;
+    /**
+     * @brief A pointer to a function which closes the given writer
+     * implementation.
+     * @param impl The reader implementation to close.
+     * Any reads after this is called are invalid.
+     */
     void (*pfnClose)(void* impl);
+
+    /**
+     * @brief A pointer to a function to write to the given writer.
+     * @param impl The writer implementation to write to.
+     * @param buffer The buffer to write into.
+     * @param charsToWrite The target number of characters to write.
+     * @param charWritten A pointer to a value which will contain the number of
+     * characters actually written when this call returns.
+     * @return 0 on success, -1 on error.
+     */
     int32_t (*pfnWrite)(void* impl, const char* buffer, size_t charsToWrite,
                         size_t* charsWritten);
 } JwtWriter;

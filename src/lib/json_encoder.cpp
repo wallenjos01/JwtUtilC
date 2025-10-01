@@ -115,15 +115,17 @@ int32_t jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer) {
         JwtJsonObjectIterator it = jwtJsonObjectIteratorCreate(&obj);
 
         size_t index = 0;
-        while (jwtJsonObjectIteratorNext(&it) != nullptr) {
+        JwtJsonObjectEntry* entry = jwtJsonObjectIteratorNext(&it);
+        while (entry != nullptr) {
             if (index > 0) {
                 CHECK(jwtWriterWrite(writer, ",", 1, nullptr));
             }
-            JwtJsonObjectEntry* entry = it.entry;
             CHECK(writeString(entry->key, writer));
             CHECK(jwtWriterWrite(writer, ":", 1, nullptr));
             CHECK(jwtWriteJsonWriter(&entry->element, writer));
             index++;
+
+            entry = jwtJsonObjectIteratorNext(&it);
         }
 
         CHECK(jwtWriterWrite(writer, "}", 1, nullptr));

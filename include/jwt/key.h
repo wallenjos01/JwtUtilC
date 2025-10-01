@@ -84,12 +84,31 @@ enum JwtKeyOperation : uint8_t {
  * Represents the X.509 certificate information part of a JWK
  */
 typedef struct JwtCertInfo {
+    /**
+     * @brief X.509 URL. A URI pointing to a X.509 certificate corresponding to
+     * this key.
+     */
     JwtString x5u;
+
+    /**
+     * @brief X.509 Certificate Chain. A list of URIs pointing to X.509
+     * certificates corresponding to this key.
+     */
     struct {
         JwtString* head;
         size_t length;
     } x5c;
+
+    /**
+     * @brief X.509 SHA-1 Thumbprint. A 20-byte buffer containing the SHA-1
+     * digest of the above certificate.
+     */
     char* x5t;
+
+    /**
+     * @brief X.509 SHA-256 Thumbprint. A 32-byte buffer containing the SHA-256
+     * digest of the above certificate.
+     */
     char* x5t256;
 } JwtCertInfo;
 
@@ -99,12 +118,36 @@ typedef struct JwtCertInfo {
  */
 typedef struct JwtKey {
 
+    /**
+     * @brief A string ID for the JWK. A key id pointing to null should be
+     * considered not present.
+     */
     JwtString keyId;
-    void* keyData; // Contents depends on key type
 
+    /**
+     * @brief Some key data. Contents depends on key type.
+     */
+    void* keyData;
+
+    /**
+     * @brief The type of key.
+     */
     JwtKeyType type;
+
+    /**
+     * @brief The valid use for this key.
+     */
     JwtKeyUse use;
+
+    /**
+     * @brief The algorithm to use this key with.
+     */
     JwtAlgorithm algorithm;
+
+    /**
+     * A bitset of valid operations to use this key for.
+     * @see JwtKeyOperation
+     */
     uint8_t operations;
 
 } JwtKey;

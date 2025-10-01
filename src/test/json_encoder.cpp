@@ -18,6 +18,7 @@ TEST(JsonEncoder, TrueLiteral) {
 
     EXPECT_EQ(0, result);
     EXPECT_STREQ(buffer, "true");
+    jwtJsonElementDestroy(&element);
 }
 
 TEST(JsonEncoder, FalseLiteral) {
@@ -35,6 +36,7 @@ TEST(JsonEncoder, FalseLiteral) {
 
     EXPECT_EQ(0, result);
     EXPECT_STREQ(buffer, "false");
+    jwtJsonElementDestroy(&element);
 }
 
 TEST(JsonEncoder, NullLiteral) {
@@ -51,6 +53,7 @@ TEST(JsonEncoder, NullLiteral) {
 
     EXPECT_EQ(0, result);
     EXPECT_STREQ(buffer, "null");
+    jwtJsonElementDestroy(&element);
 }
 
 TEST(JsonEncoder, Int) {
@@ -69,6 +72,7 @@ TEST(JsonEncoder, Int) {
 
     EXPECT_EQ(0, result);
     EXPECT_STREQ(buffer, "-42");
+    jwtJsonElementDestroy(&element);
 }
 TEST(JsonEncoder, Uint) {
 
@@ -86,6 +90,7 @@ TEST(JsonEncoder, Uint) {
 
     EXPECT_EQ(0, result);
     EXPECT_STREQ(buffer, "42");
+    jwtJsonElementDestroy(&element);
 }
 TEST(JsonEncoder, Float) {
 
@@ -103,6 +108,7 @@ TEST(JsonEncoder, Float) {
 
     EXPECT_EQ(0, result);
     EXPECT_STREQ(buffer, "12.25");
+    jwtJsonElementDestroy(&element);
 }
 TEST(JsonEncoder, String) {
 
@@ -119,12 +125,13 @@ TEST(JsonEncoder, String) {
 
     EXPECT_EQ(0, result);
     EXPECT_STREQ(buffer, "\"Hello\"");
+    jwtJsonElementDestroy(&element);
 }
 TEST(JsonEncoder, Array) {
 
     JwtJsonElement element = {};
     element.type = JWT_JSON_ELEMENT_TYPE_ARRAY;
-    element.array = jwtJsonArrayCreate();
+    jwtJsonArrayCreate(&element.array);
     jwtJsonArrayPushInt(&element.array, 1);
     jwtJsonArrayPushInt(&element.array, 2);
     jwtJsonArrayPushInt(&element.array, 3);
@@ -138,12 +145,14 @@ TEST(JsonEncoder, Array) {
 
     EXPECT_EQ(0, result);
     EXPECT_STREQ(buffer, "[1,2,3]");
+
+    jwtJsonElementDestroy(&element);
 }
 TEST(JsonEncoder, Object) {
 
     JwtJsonElement element = {};
     element.type = JWT_JSON_ELEMENT_TYPE_OBJECT;
-    element.object = jwtJsonObjectCreate();
+    jwtJsonObjectCreate(&element.object);
     jwtJsonObjectSetInt(&element.object, "int", 13);
     jwtJsonObjectSetString(&element.object, "str", "Hello");
     jwtJsonObjectSetBool(&element.object, "bool", true);
@@ -157,4 +166,6 @@ TEST(JsonEncoder, Object) {
 
     EXPECT_EQ(0, result);
     EXPECT_STREQ(buffer, "{\"int\":13,\"bool\":true,\"str\":\"Hello\"}");
+
+    jwtJsonElementDestroy(&element);
 }

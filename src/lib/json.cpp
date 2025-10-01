@@ -11,11 +11,29 @@
 #include <jwt/json.h>
 
 #include <cstdlib>
-#include <utility>
 
 #include "hash.hpp"
 
-namespace {} // namespace
+namespace {
+
+JwtHashFunctions jsonFunctions = {
+    .entrySize = sizeof(JwtJsonObjectEntry),
+    .pfnHashKey =
+        [](void* key) {
+            JwtString* str = static_cast<JwtString*>(key);
+            return hashString(str->data, str->length);
+        },
+    .pfnCompareKey =
+        [](void* key, void* entry) {
+            JwtString* str = static_cast<JwtString*>(key);
+            JwtJsonObjectEntry* ent = static_cast<JwtJsonObjectEntry*>(entry);
+            if (str->length != ent->key.length) {
+                return -1;
+            }
+            return memcmp(str->data, ent->key.data, str->length);
+        }};
+
+} // namespace
 
 void jwtJsonArrayDestroy(JwtJsonArray* array) {
     for (auto i = 0; i < array->size; i++) {
@@ -25,41 +43,26 @@ void jwtJsonArrayDestroy(JwtJsonArray* array) {
     jwtListDestroy(array);
 }
 
-JwtJsonObject jwtJsonObjectCreate() { return jwtJsonObjectCreateSized(16); }
+void jwtJsonObjectCreate(JwtJsonObject* object) {
+    return jwtHashTableCreate(object, &jsonFunctions);
+}
 
-JwtJsonObject jwtJsonObjectCreateSized(size_t numBuckets) {
-    JwtJsonObject out = {.numBuckets = numBuckets,
-                         .size = 0,
-                         .buckets = new JwtJsonObjectEntry*[numBuckets]};
-
-    memset(out.buckets, 0, sizeof(JwtJsonObjectEntry*) * numBuckets);
-    return out;
+void jwtJsonObjectCreateSized(JwtJsonObject* object, size_t numBuckets) {
+    return jwtHashTableCreateSized(object, &jsonFunctions, numBuckets);
 }
 
 void jwtJsonObjectDestroy(JwtJsonObject* object) {
-
     jwtJsonObjectClear(object);
-    if (object->buckets) {
-        delete[] object->buckets;
-        object->buckets = nullptr;
-    }
-    object->numBuckets = 0;
+    jwtHashTableDestroy(object);
 }
 
 JwtJsonElement jwtJsonObjectGet(JwtJsonObject* object, const char* key) {
-    size_t len = strlen(key);
-    size_t bucket = hashString(key, len) % object->numBuckets;
 
-    if (object->numBuckets == 0)
-        return {.type = JWT_JSON_ELEMENT_TYPE_NULL, .boolean = false};
-
-    JwtJsonObjectEntry* entry = object->buckets[bucket];
-    while (entry != nullptr &&
-           (entry->key.length != len || memcmp(key, entry->key.data, len))) {
-        entry = entry->next;
-    }
+    JwtString keyView = {.length = strlen(key), .data = key};
+    JwtJsonObjectEntry* entry =
+        static_cast<JwtJsonObjectEntry*>(jwtHashTableGet(object, &keyView));
     if (entry == nullptr) {
-        return {.type = JWT_JSON_ELEMENT_TYPE_NULL, .boolean = false};
+        return {};
     }
 
     return entry->element;
@@ -67,118 +70,60 @@ JwtJsonElement jwtJsonObjectGet(JwtJsonObject* object, const char* key) {
 void jwtJsonObjectSetWithString(JwtJsonObject* object, JwtString key,
                                 JwtJsonElement value) {
 
-    if (object->numBuckets == 0)
-        return;
-
-    if (object->size >= object->numBuckets * 0.8) {
-        jwtJsonObjectReindex(object, object->numBuckets * 2);
-    }
-
-    size_t bucket = hashString(key.data, key.length) % object->numBuckets;
-
-    JwtJsonObjectEntry* entry = object->buckets[bucket];
-    while (entry != nullptr &&
-           (entry->key.length != key.length ||
-            memcmp(key.data, entry->key.data, key.length))) {
-        entry = entry->next;
-    }
-    if (entry != nullptr) {
-        // Overwrite existing value
-        jwtStringDestroy(&entry->key);
-        jwtJsonElementDestroy(&entry->element);
-    } else {
-        // Insert new value
-        JwtJsonObjectEntry* prev = object->buckets[bucket];
-        entry = new JwtJsonObjectEntry();
-        entry->next = prev;
-        object->buckets[bucket] = entry;
-        object->size++;
-    }
+    JwtJsonObjectEntry* entry =
+        static_cast<JwtJsonObjectEntry*>(jwtHashTablePut(object, &key));
 
     entry->key = key;
     entry->element = value;
 }
 
-void jwtJsonObjectReindex(JwtJsonObject* obj, size_t len) {
-    JwtJsonObject reindexed = jwtJsonObjectCreateSized(len);
-
-    for (auto i = 0; i < obj->numBuckets; i++) {
-        JwtJsonObjectEntry* entry = obj->buckets[i];
-        while (entry != nullptr) {
-            jwtJsonObjectSetWithString(&reindexed, entry->key, entry->element);
-        }
-    }
-
-    std::swap(reindexed, *obj);
-
-    delete[] reindexed.buckets;
-    reindexed.buckets = nullptr;
-    reindexed.numBuckets = 0;
-    reindexed.size = 0;
-}
-
 void jwtJsonObjectRemove(JwtJsonObject* object, const char* key) {
-
-    if (object->numBuckets == 0)
-        return;
-
-    size_t len = strlen(key);
-    size_t bucket = hashString(key, len) % object->numBuckets;
-
-    JwtJsonObjectEntry* entry = object->buckets[bucket];
-    JwtJsonObjectEntry* prev = entry;
-    while (entry != nullptr &&
-           (entry->key.length != len || memcmp(key, entry->key.data, len))) {
-        prev = entry;
-        entry = entry->next;
-    }
+    JwtString keyView = {.length = strlen(key), .data = key};
+    JwtJsonObjectEntry* entry =
+        static_cast<JwtJsonObjectEntry*>(jwtHashTableReclaim(object, &keyView));
 
     if (entry != nullptr) {
-        prev->next = entry->next;
         jwtStringDestroy(&entry->key);
         jwtJsonElementDestroy(&entry->element);
-        delete entry;
-        object->size--;
-    }
-
-    if (entry == prev) {
-        object->buckets[bucket] = nullptr;
+        free(entry);
     }
 }
+
+JwtJsonElement jwtJsonElementReclaim(JwtJsonObject* object, const char* key) {
+    JwtString keyView = {.length = strlen(key), .data = key};
+    JwtJsonObjectEntry* entry =
+        static_cast<JwtJsonObjectEntry*>(jwtHashTableReclaim(object, &keyView));
+
+    if (entry) {
+        JwtJsonElement out = entry->element;
+        jwtStringDestroy(&entry->key);
+        free(entry);
+        return out;
+    } else {
+        return {};
+    }
+}
+
 void jwtJsonObjectClear(JwtJsonObject* object) {
-    for (auto i = 0; i < object->numBuckets; i++) {
-        JwtJsonObjectEntry* entry = object->buckets[i];
-        while (entry != nullptr) {
-            jwtStringDestroy(&entry->key);
-            jwtJsonElementDestroy(&entry->element);
-            JwtJsonObjectEntry* prev = entry;
 
-            entry = entry->next;
-            delete prev;
-        }
-        object->buckets[i] = nullptr;
+    JwtJsonObjectIterator it = jwtJsonObjectIteratorCreate(object);
+    jwtHashTableIteratorNext(&it);
+
+    while (it.current != nullptr) {
+        JwtJsonObjectEntry* entry =
+            static_cast<JwtJsonObjectEntry*>(jwtHashTableIteratorReclaim(&it));
+        jwtStringDestroy(&entry->key);
+        jwtJsonElementDestroy(&entry->element);
+
+        free(entry);
     }
-    object->size = 0;
 }
 
-JwtJsonObjectIterator jwtJsonObjectIteratorCreate(JwtJsonObject* obj) {
-    return {
-        .obj = obj, .entry = nullptr, .bucketIndex = static_cast<size_t>(-1)};
-}
 JwtJsonObjectEntry* jwtJsonObjectIteratorNext(JwtJsonObjectIterator* it) {
-    if (it->entry != nullptr) {
-        it->entry = it->entry->next;
-    }
-
-    while (it->entry == nullptr) {
-        if (it->bucketIndex + 1 == it->obj->numBuckets) {
-            break;
-        }
-        it->bucketIndex++;
-        it->entry = it->obj->buckets[it->bucketIndex];
-    }
-
-    return it->entry;
+    jwtHashTableIteratorNext(it);
+    if (it->current == nullptr)
+        return nullptr;
+    return static_cast<JwtJsonObjectEntry*>(it->current->data);
 }
 
 void jwtJsonElementDestroy(JwtJsonElement* element) {
@@ -219,12 +164,18 @@ bool jwtJsonElementAsBool(JwtJsonElement element) {
     return element.boolean;
 }
 JwtJsonArray jwtJsonElementAsArray(JwtJsonElement element) {
-    if (element.type != JWT_JSON_ELEMENT_TYPE_ARRAY)
-        return jwtJsonArrayCreate();
+    if (element.type != JWT_JSON_ELEMENT_TYPE_ARRAY) {
+        JwtJsonArray arr = {};
+        jwtJsonArrayCreate(&arr);
+        return arr;
+    }
     return element.array;
 }
 JwtJsonObject jwtJsonElementAsObject(JwtJsonElement element) {
-    if (element.type != JWT_JSON_ELEMENT_TYPE_OBJECT)
-        return {.numBuckets = 0, .size = 0, .buckets = nullptr};
+    if (element.type != JWT_JSON_ELEMENT_TYPE_OBJECT) {
+        JwtJsonObject obj = {};
+        jwtJsonObjectCreate(&obj);
+        return obj;
+    }
     return element.object;
 }

@@ -303,11 +303,12 @@ JwtJsonParseResult parseArray(JwtJsonElement* output, JwtReader reader,
 
         // Empty array
         output->type = JWT_JSON_ELEMENT_TYPE_ARRAY;
-        output->array = jwtJsonArrayCreate();
+        jwtJsonArrayCreate(&output->array);
         return JWT_JSON_PARSE_RESULT_SUCCESS;
     }
 
-    JwtJsonArray array = jwtJsonArrayCreate();
+    JwtJsonArray array = {};
+    jwtJsonArrayCreate(&array);
 
     while (true) {
 
@@ -346,11 +347,12 @@ JwtJsonParseResult parseObject(JwtJsonElement* output, JwtReader reader,
         }
         // Empty object
         output->type = JWT_JSON_ELEMENT_TYPE_OBJECT;
-        output->object = jwtJsonObjectCreateSized(1);
+        jwtJsonObjectCreate(&output->object);
         return JWT_JSON_PARSE_RESULT_SUCCESS;
     }
 
-    JwtJsonObject object = jwtJsonObjectCreate();
+    JwtJsonObject object = {};
+    jwtJsonObjectCreate(&object);
 
     size_t count = 0;
     while (true) {

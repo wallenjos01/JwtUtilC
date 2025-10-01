@@ -32,35 +32,30 @@ enum JwtJsonParseResult : int32_t {
     JWT_JSON_PARSE_RESULT_IO_ERROR = -3
 };
 
-struct JwtJsonElement;
-struct JwtJsonObjectEntry;
-
 /**
  * Represents a JSON array, which can contain any number of JSON elements
  */
-// typedef struct JwtJsonArray {
-//     size_t length;
-//     size_t capacity;
-//     JwtJsonElement* data;
-// } JwtJsonArray;
 typedef JwtList JwtJsonArray;
 
 /**
  * Represents a JSON object, which is a key-value mapping from strings to JSON
  * elements
  */
-typedef struct JwtJsonObject {
-    size_t numBuckets;
-    size_t size;
-    JwtJsonObjectEntry** buckets;
-} JwtJsonObject;
+typedef JwtHashTable JwtJsonObject;
 
 /**
- * Represents a JSON element, which is one of: a string, a number, a boolean, a
- * JSON array, a JSON object, or null
+ * A typed union representing a JSON element, which is one of: a string, a
+ * number, a boolean, a JSON array, a JSON object, or null
  */
 typedef struct JwtJsonElement {
+    /**
+     * @brief The element type.
+     */
     JwtJsonElementType type;
+
+    /**
+     * @brief The element data.
+     */
     union {
         JwtString string;
         JwtNumeric number;
@@ -74,19 +69,20 @@ typedef struct JwtJsonElement {
  * Represents a key-value pair in a JSON Object
  */
 typedef struct JwtJsonObjectEntry {
+    /**
+     * @brief The string key associated with the element
+     */
     JwtString key;
+    /**
+     * @brief The element in the JSON object
+     */
     JwtJsonElement element;
-    JwtJsonObjectEntry* next;
 } JwtJsonObjectEntry;
 
 /**
  * Utility struct for iterating over JSON Object entries
  */
-typedef struct JwtJsonObjectIterator {
-    JwtJsonObject* obj;
-    JwtJsonObjectEntry* entry;
-    size_t bucketIndex;
-} JwtJsonObjectIterator;
+typedef JwtHashTableIterator JwtJsonObjectIterator;
 
 /**
  * @brief Destroys the given JSON element, if necessary.
@@ -179,10 +175,8 @@ JwtJsonObject jwtJsonElementAsObject(JwtJsonElement element);
  * jwtJsonArrayDestroy()
  * @return An empty JSON array.
  */
-inline JwtJsonArray jwtJsonArrayCreate() {
-    JwtJsonArray out = {};
-    jwtListCreate(&out, sizeof(JwtJsonElement));
-    return out;
+inline void jwtJsonArrayCreate(JwtJsonArray* array) {
+    jwtListCreate(array, sizeof(JwtJsonElement));
 }
 
 /**
@@ -503,7 +497,7 @@ inline void jwtJsonArrayRemove(JwtJsonArray* array, size_t index) {
  * jwtJsonObjectDestroy()
  * @return An empty JSON object.
  */
-JwtJsonObject jwtJsonObjectCreate();
+void jwtJsonObjectCreate(JwtJsonObject* object);
 
 /**
  * @brief Creates an empty JSON object with the given number of buckets.
@@ -512,7 +506,7 @@ JwtJsonObject jwtJsonObjectCreate();
  * @param numBuckets The number of buckets to allocate at first.
  * @return An empty JSON object.
  */
-JwtJsonObject jwtJsonObjectCreateSized(size_t numBuckets);
+void jwtJsonObjectCreateSized(JwtJsonObject* object, size_t numBuckets);
 
 /**
  * @brief Destroys the given JSON object.
@@ -754,7 +748,9 @@ inline void jwtJsonObjectSetObject(JwtJsonObject* object, const char* key,
  * @param object The JSON object to reindex.
  * @param numBuckets The new number of buckets.
  */
-void jwtJsonObjectReindex(JwtJsonObject* object, size_t numBuckets);
+inline void jwtJsonObjectReindex(JwtJsonObject* object, size_t numBuckets) {
+    jwtHashTableReindex(object, numBuckets);
+}
 
 /**
  * @brief Removes the value associated with the given key from the given object.
@@ -762,6 +758,15 @@ void jwtJsonObjectReindex(JwtJsonObject* object, size_t numBuckets);
  * @param key The key associated with the value to remove.
  */
 void jwtJsonObjectRemove(JwtJsonObject* object, const char* key);
+
+/**
+ * @brief Removes the value associated with the given key from the given object,
+ * but does not destroy it.
+ * @param object The object to modify.
+ * @param key The key associated with the value to remove.
+ * @return The element removed from the object.
+ */
+JwtJsonElement jwtJsonElementReclaim(JwtJsonObject* object, const char* key);
 
 /**
  * @brief Removes all values from the given JSON object.
@@ -774,7 +779,10 @@ void jwtJsonObjectClear(JwtJsonObject* object);
  * @param object The object to iterate over.
  * @return A new JSON object iterator.
  */
-JwtJsonObjectIterator jwtJsonObjectIteratorCreate(JwtJsonObject* object);
+inline JwtJsonObjectIterator
+jwtJsonObjectIteratorCreate(JwtJsonObject* object) {
+    return jwtHashTableIteratorCreate(object);
+}
 
 /**
  * @brief Advances the given iterator to the next value in its assocaited JSON
