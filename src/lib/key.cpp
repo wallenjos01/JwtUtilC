@@ -1,15 +1,23 @@
 /**
- * josh wallentine
- * created 9/30/25
+ * Josh Wallentine
+ * Created 9/30/25
+ * Modified 10/3/25
  *
- * implementation of include/jwt/key.h
+ * Implementation of include/jwt/key.h
+ * Partial implementation of key.hpp
+ * See also key_ec.cpp, key_rsa.cpp
  */
 
-#include <iostream>
 #include <jwt/json.h>
 #include <jwt/key.h>
 
+#include <openssl/evp.h>
+#include <openssl/params.h>
+
+#include "algorithm.hpp"
 #include "hash.hpp"
+#include "key.hpp"
+#include "util.hpp"
 
 namespace {
 
@@ -88,125 +96,6 @@ int32_t parseKeyOps(uint8_t* bitset, JwtJsonArray array) {
     return 0;
 }
 
-int32_t parseAlgorithm(JwtAlgorithm* alg, JwtString str) {
-
-    size_t hash = hashString(str.data, str.length);
-    switch (hash) {
-    case hashCString("none"):
-        *alg = JWT_ALGORITHM_NONE;
-        break;
-    case hashCString("HS256"):
-        *alg = JWT_ALGORITHM_HS256;
-        break;
-    case hashCString("HS384"):
-        *alg = JWT_ALGORITHM_HS384;
-        break;
-    case hashCString("HS512"):
-        *alg = JWT_ALGORITHM_HS512;
-        break;
-    case hashCString("RS256"):
-        *alg = JWT_ALGORITHM_RS256;
-        break;
-    case hashCString("RS384"):
-        *alg = JWT_ALGORITHM_RS384;
-        break;
-    case hashCString("RS512"):
-        *alg = JWT_ALGORITHM_RS512;
-        break;
-    case hashCString("ES256"):
-        *alg = JWT_ALGORITHM_ES256;
-        break;
-    case hashCString("ES384"):
-        *alg = JWT_ALGORITHM_ES384;
-        break;
-    case hashCString("ES512"):
-        *alg = JWT_ALGORITHM_ES512;
-        break;
-    case hashCString("PS256"):
-        *alg = JWT_ALGORITHM_PS256;
-        break;
-    case hashCString("PS384"):
-        *alg = JWT_ALGORITHM_PS384;
-        break;
-    case hashCString("PS512"):
-        *alg = JWT_ALGORITHM_PS512;
-        break;
-    case hashCString("RSA1_5"):
-        *alg = JWT_ALGORITHM_RSA1_5;
-        break;
-    case hashCString("RSA-OAEP"):
-        *alg = JWT_ALGORITHM_RSA_OAEP;
-        break;
-    case hashCString("RSA-OAEP-256"):
-        *alg = JWT_ALGORITHM_RSA_OAEP_256;
-        break;
-    case hashCString("A128KW"):
-        *alg = JWT_ALGORITHM_A128KW;
-        break;
-    case hashCString("A192KW"):
-        *alg = JWT_ALGORITHM_A192KW;
-        break;
-    case hashCString("A256KW"):
-        *alg = JWT_ALGORITHM_A256KW;
-        break;
-    case hashCString("dir"):
-        *alg = JWT_ALGORITHM_DIRECT;
-        break;
-    case hashCString("ECDH-ES"):
-        *alg = JWT_ALGORITHM_ECDH_ES;
-        break;
-    case hashCString("ECDH-ES+A128KW"):
-        *alg = JWT_ALGORITHM_ECDH_ES_A128KW;
-        break;
-    case hashCString("ECDH-ES+A192KW"):
-        *alg = JWT_ALGORITHM_ECDH_ES_A192KW;
-        break;
-    case hashCString("ECDH-ES+A256KW"):
-        *alg = JWT_ALGORITHM_ECDH_ES_A256KW;
-        break;
-    case hashCString("A128GCMKW"):
-        *alg = JWT_ALGORITHM_A128GCMKW;
-        break;
-    case hashCString("A192GCMKW"):
-        *alg = JWT_ALGORITHM_A192GCMKW;
-        break;
-    case hashCString("A256GCMKW"):
-        *alg = JWT_ALGORITHM_A256GCMKW;
-        break;
-    case hashCString("PBES2-HS256+A128KW"):
-        *alg = JWT_ALGORITHM_PBES_HS256_A128KW;
-        break;
-    case hashCString("PBES2-HS384+A192KW"):
-        *alg = JWT_ALGORITHM_PBES_HS384_A192KW;
-        break;
-    case hashCString("PBES2-HS512+A256KW"):
-        *alg = JWT_ALGORITHM_PBES_HS512_A256KW;
-        break;
-    case hashCString("A128CBC-HS256"):
-        *alg = JWT_ALGORITHM_A128CBC_HS256;
-        break;
-    case hashCString("A192CBC-HS384"):
-        *alg = JWT_ALGORITHM_A192CBC_HS384;
-        break;
-    case hashCString("A256CBC-HS512"):
-        *alg = JWT_ALGORITHM_A256CBC_HS512;
-        break;
-    case hashCString("A128GCM"):
-        *alg = JWT_ALGORITHM_A128GCM;
-        break;
-    case hashCString("A192GCM"):
-        *alg = JWT_ALGORITHM_A192GCM;
-        break;
-    case hashCString("A256GCM"):
-        *alg = JWT_ALGORITHM_A256GCM;
-        break;
-    default:
-        return -1;
-    }
-
-    return 0;
-}
-
 } // namespace
 
 JwtKeyParseResult jwtKeyParse(JwtKey* key, JwtJsonObject obj) {
@@ -230,9 +119,46 @@ JwtKeyParseResult jwtKeyParse(JwtKey* key, JwtJsonObject obj) {
 
     JwtString alg = jwtJsonObjectGetString(&obj, "alg");
     key->algorithm = JWT_ALGORITHM_UNKNOWN;
-    if (alg.data && parseAlgorithm(&key->algorithm, alg) != 0) {
+    if (alg.data && jwt::parseAlgorithm(&key->algorithm, alg) != 0) {
         return JWT_KEY_PARSE_RESULT_UNKNOWN_ALGORITHM;
     }
+
+    switch (key->type) {
+    case JWT_KEY_TYPE_ELLIPTIC_CURVE:
+        return jwt::parseEcKey(key, obj);
+    case JWT_KEY_TYPE_RSA:
+        return jwt::parseRsaKey(key, obj);
+    case JWT_KEY_TYPE_OCTET_SEQUENCE:
+        return jwt::parseOctKey(key, obj);
+    }
+
+    return JWT_KEY_PARSE_RESULT_SUCCESS;
+}
+
+void jwtKeyDestroy(JwtKey* key) {
+
+    switch (key->type) {
+    case JWT_KEY_TYPE_ELLIPTIC_CURVE:
+    case JWT_KEY_TYPE_RSA:
+        EVP_PKEY_free(static_cast<EVP_PKEY*>(key->keyData));
+        return;
+    case JWT_KEY_TYPE_OCTET_SEQUENCE:
+        delete static_cast<Span<uint8_t>*>(key->keyData);
+        return;
+    }
+}
+
+JwtKeyParseResult jwt::parseOctKey(JwtKey* key, JwtJsonObject obj) {
+
+    JwtString kB64 = jwtJsonObjectGetString(&obj, "k"); // Key data
+    if (kB64.data == nullptr) {
+        return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
+    }
+
+    Span<uint8_t>* k = new Span<uint8_t>();
+    key->keyData = k;
+    CHECK(jwt::b64url::decodeNew(kB64.data, kB64.length, k),
+          JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
 
     return JWT_KEY_PARSE_RESULT_SUCCESS;
 }
