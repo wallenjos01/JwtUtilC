@@ -1,5 +1,6 @@
 #include "../lib/algorithm.hpp"
 #include "jwt/json.h"
+#include "jwt/stream.h"
 
 #include <gtest/gtest.h>
 
@@ -11,16 +12,19 @@ TEST(Base64Url, Basic) {
     size_t encLen = jwt::b64url::getEncodedLength(len);
     char* encoded = new char[encLen + 1];
     encoded[encLen] = '\0';
+    JwtWriter encodeWriter;
+    jwtWriterCreateForBuffer(&encodeWriter, encoded, encLen);
 
-    jwt::b64url::encode(reinterpret_cast<const uint8_t*>(message), len, encoded,
-                        encLen);
+    jwt::b64url::encode(reinterpret_cast<const uint8_t*>(message), len, encodeWriter);
 
     ASSERT_STREQ(encoded, "SGVsbG8sIFdvcmxk");
 
     uint8_t* decoded = new uint8_t[len];
-    jwt::b64url::decode(encoded, encLen, decoded, len);
+    JwtWriter decodeWriter;
+    jwtWriterCreateForBuffer(&decodeWriter, decoded, len);
+    jwt::b64url::decode(encoded, encLen, decodeWriter);
 
-    ASSERT_EQ(0, memcmp(message, decoded, len));
+    ASSERT_STREQ(message, reinterpret_cast<char*>(decoded));
 
     delete[] encoded;
     delete[] decoded;
@@ -35,10 +39,12 @@ TEST(Base64Url, Decode) {
     ASSERT_EQ(7, decLen);
 
     uint8_t* decoded = new uint8_t[decLen];
+    JwtWriter decodeWriter;
+    jwtWriterCreateForBuffer(&decodeWriter, decoded, decLen);
 
-    jwt::b64url::decode(encoded, encLen, decoded, decLen);
+    jwt::b64url::decode(encoded, encLen, decodeWriter);
 
-    ASSERT_EQ(0, memcmp(decoded, "testKey", 7));
+    ASSERT_STREQ("testKey", reinterpret_cast<char*>(decoded));
 }
 
 TEST(Base64Url, Long) {
@@ -59,8 +65,10 @@ TEST(Base64Url, Long) {
     ASSERT_EQ(257, decLen);
 
     uint8_t* decoded = new uint8_t[decLen];
+    JwtWriter decodeWriter;
+    jwtWriterCreateForBuffer(&decodeWriter, decoded, decLen);
 
-    jwt::b64url::decode(encoded, encLen, decoded, decLen);
+    jwt::b64url::decode(encoded, encLen, decodeWriter);
     std::string hex = toHex(decoded, decLen);
 
     ASSERT_STREQ(

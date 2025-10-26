@@ -8,6 +8,8 @@
 
 #include <jwt/stream.h>
 
+#include "jwt/core.h"
+
 #include <cstring>
 #include <fstream>
 
@@ -21,6 +23,19 @@ struct BufferInfo {
 
 struct FileInfo {
     std::fstream stream;
+};
+
+struct ListInfo {
+
+    ListInfo() : 
+        list{}, 
+        index(0) {
+
+        jwtListCreate(&list, 1);
+    }
+
+    JwtList list;
+    size_t index;
 };
 
 int32_t readFile(void* impl, char* buffer, size_t charsToRead,
@@ -48,10 +63,6 @@ int32_t readBuffer(void* impl, char* buffer, size_t charsToRead,
     }
     size_t readable = info->bufferLength - info->index;
     size_t toRead = std::min(readable, charsToRead);
-    if (toRead == 0) {
-        *charsRead = 0;
-        return 0;
-    }
 
     memcpy(buffer, info->buffer + info->index, toRead);
     info->index += toRead;
@@ -109,6 +120,33 @@ void closeFile(void* impl) {
     delete info;
 }
 
+
+int32_t writeList(void* impl, const char* buffer, size_t charsToWrite, size_t* charsWritten) {
+
+    ListInfo* info = static_cast<ListInfo*>(impl);
+    
+    void* current = jwtListPushN(&info->list, charsToWrite);
+    if(current == nullptr) {
+        if(charsWritten) {
+            *charsWritten = 0;
+        }
+        return 1;
+    }
+    memcpy(current, buffer, charsToWrite);
+
+    if(charsWritten) {
+        *charsWritten = charsToWrite;
+    }
+
+    return 0;
+}
+
+void closeList(void* impl) {
+    ListInfo* info = static_cast<ListInfo*>(impl);
+    jwtListDestroy(&info->list);
+    delete info;
+}
+
 }; // namespace
 
 int32_t jwtReaderCreateForFile(JwtReader* reader, const char* path) {
@@ -128,10 +166,10 @@ int32_t jwtReaderCreateForFile(JwtReader* reader, const char* path) {
     return 0;
 }
 
-int32_t jwtReaderCreateForBuffer(JwtReader* reader, const char* buffer,
+int32_t jwtReaderCreateForBuffer(JwtReader* reader, const void* buffer,
                                  size_t length) {
     BufferInfo* info = new BufferInfo();
-    info->buffer = const_cast<char*>(buffer);
+    info->buffer = const_cast<char*>(static_cast<const char*>(buffer));
     info->index = 0;
     info->bufferLength = length;
     reader->impl = info;
@@ -157,10 +195,10 @@ int32_t jwtWriterCreateForFile(JwtWriter* writer, const char* path) {
     return 0;
 }
 
-int32_t jwtWriterCreateForBuffer(JwtWriter* writer, char* buffer,
+int32_t jwtWriterCreateForBuffer(JwtWriter* writer, void* buffer,
                                  size_t length) {
     BufferInfo* info = new BufferInfo();
-    info->buffer = buffer;
+    info->buffer = static_cast<char*>(buffer);
     info->index = 0;
     info->bufferLength = length;
     writer->impl = info;
@@ -225,4 +263,16 @@ int32_t jwtWriterWriteAll(JwtWriter writer, const char* buffer,
         *charsWritten = totalWritten;
     }
     return 0;
+}
+
+int32_t jwtWriterCreateDynamic(JwtWriter* writer) {
+    writer->impl = new ListInfo();
+    writer->pfnClose = closeList;
+    writer->pfnWrite = writeList;
+    return 0;
+}
+
+JwtList* jwtWriterExtractDynamic(JwtWriter* writer) {
+    if(writer->pfnWrite != writeList) return nullptr;
+    return &static_cast<ListInfo*>(writer->impl)->list;
 }

@@ -1,6 +1,7 @@
 #ifndef JWT_STREAM_H
 #define JWT_STREAM_H
 
+#include "jwt/core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -52,7 +53,7 @@ int32_t jwtReaderCreateForFile(JwtReader* reader, const char* path);
  * @param length The length of the buffer.
  * @return 0 on success, -1 on error.
  */
-int32_t jwtReaderCreateForBuffer(JwtReader* reader, const char* buffer,
+int32_t jwtReaderCreateForBuffer(JwtReader* reader, const void* buffer,
                                  size_t length);
 
 /**
@@ -138,8 +139,24 @@ int32_t jwtWriterCreateForFile(JwtWriter* writer, const char* path);
  * @param length The length of the buffer.
  * @return 0 on success, -1 on error.
  */
-int32_t jwtWriterCreateForBuffer(JwtWriter* writer, char* buffer,
+int32_t jwtWriterCreateForBuffer(JwtWriter* writer, void* buffer,
                                  size_t length);
+
+
+/**
+ * @brief Creates a writer which writes to a dynamic array.
+ * @param writer The writer struct to initialize as a dynamic writer.
+ * @return 0 on success, -1 on error.
+ */
+int32_t jwtWriterCreateDynamic(JwtWriter* writer);
+
+/**
+ * @brief Gets the dynamic array backing a dynamic writer
+ * @param writer The writer to extract from.
+ * @return The list backing the given writer, or 0 if the writer is not a dynamic buffer 
+ */
+JwtList* jwtWriterExtractDynamic(JwtWriter* writer);
+
 
 /**
  * @brief Closes the given reader. All reads after this call will be invalid.

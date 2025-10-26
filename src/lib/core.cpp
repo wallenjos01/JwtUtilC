@@ -79,29 +79,26 @@ void jwtListDestroy(JwtList* list) {
 }
 
 void* jwtListPush(JwtList* list) {
-    if (list->size + 1 > list->capacity) {
+    return jwtListPushN(list, 1);
+}
 
-        list->capacity = list->capacity == 0 ? 1 : list->capacity * 2;
-        void* oldHead = list->head;
+void* jwtListPushN(JwtList* list, size_t n) {
+    if(list->step == 0) return nullptr;
+    if (list->size + n > list->capacity) {
 
-        if (list->head == nullptr ||
-            (list->head = realloc(list->head, list->capacity * list->step)) ==
-                nullptr) {
-
-            list->head = malloc(list->capacity * list->step);
-            if (list->head == nullptr) {
-                return nullptr;
-            }
-
-            if (oldHead != nullptr) {
-                memcpy(list->head, oldHead, list->size * list->step);
-                free(list->head);
-            }
+        size_t newCapacity = (list->capacity + n) + (list->capacity * 1.5);
+        if(newCapacity < list->capacity 
+            || newCapacity < list->size + n 
+            || newCapacity > SIZE_MAX / list->step) {
+            return nullptr;
         }
+        
+        list->capacity = newCapacity;
+        list->head = realloc(list->head, list->capacity * list->step);
     }
 
-    list->size++;
-    return jwtListGet(list, list->size - 1);
+    list->size += n;
+    return jwtListGet(list, list->size - n);
 }
 
 void* jwtListGet(const JwtList* list, size_t index) {
@@ -126,6 +123,14 @@ void jwtListRemove(JwtList* list, size_t index) {
         memmove(removedStart, removedEnd, numElements * list->step);
     }
     list->size--;
+}
+
+void* jwtListReclaim(JwtList* list) {
+    void* out = list->head;
+    list->size = 0;
+    list->capacity = 0;
+    list->head = nullptr;
+    return out;
 }
 
 void jwtHashTableCreate(JwtHashTable* table, JwtHashFunctions* functions) {

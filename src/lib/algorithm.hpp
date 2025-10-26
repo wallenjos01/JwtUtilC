@@ -6,8 +6,7 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include <openssl/evp.h>
-
+#include "jwt/stream.h"
 #include "util.hpp"
 
 namespace jwt {
@@ -23,31 +22,15 @@ int32_t generateSignature(Span<uint8_t> input, JwtKey key,
 
 namespace b64url {
 
+int32_t encode(const void* data, size_t dataLength, JwtWriter writer);
+
+int32_t decode(const void* encoded, size_t encodedLength, JwtWriter writer);
+
 size_t getEncodedLength(size_t dataLength);
 
 size_t getDataLength(size_t encodedLength);
 
-int32_t decode(const char* encoded, size_t encodedLength, uint8_t* outputBuffer,
-               size_t outputBufferLength);
-
-inline int32_t decodeNew(const char* encoded, size_t encodedLength,
-                         uint8_t** outputBuffer, size_t* outputBufferLength) {
-
-    *outputBufferLength = getDataLength(encodedLength);
-    *outputBuffer = new uint8_t[*outputBufferLength];
-
-    return decode(encoded, encodedLength, *outputBuffer, *outputBufferLength);
-}
-
-inline int32_t decodeNew(const char* encoded, size_t encodedLength,
-                         Span<uint8_t>* outputBuffer) {
-    outputBuffer->owned = true;
-    return decodeNew(encoded, encodedLength, &outputBuffer->data,
-                     &outputBuffer->length);
-}
-
-int32_t encode(const uint8_t* data, size_t dataLength, char* outputBuffer,
-               size_t outputBufferLength);
+int32_t decodeNew(const void* encoded, size_t encodedLength, Span<uint8_t>* output);
 
 } // namespace b64url
 

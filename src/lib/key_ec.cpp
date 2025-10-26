@@ -12,6 +12,7 @@
 #include <openssl/core_names.h>
 #include <openssl/ec.h>
 #include <openssl/err.h>
+#include <openssl/evp.h>
 #include <openssl/obj_mac.h>
 #include <openssl/param_build.h>
 #include <openssl/params.h>

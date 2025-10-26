@@ -142,6 +142,14 @@ void jwtListDestroy(JwtList* list);
 void* jwtListPush(JwtList* list);
 
 /**
+ * @brief Pushes n new items onto the list.
+ * @param list A pointer to the list to expand.
+ * @param n The number of items to add to the list.
+ * @return A pointer to the newly accessible memory.
+ */
+void* jwtListPushN(JwtList* list, size_t n);
+
+/**
  * @brief Gets the item at the given index of the list.
  * @param list A pointer to the list to query.
  * @param index The index to get at.
@@ -160,6 +168,13 @@ void jwtListPop(JwtList* list);
  * @param index The index of the item to remove.
  */
 void jwtListRemove(JwtList* list, size_t index);
+
+/**
+ * @brief Reclaims ownership of the underlying data from the list, and returns it
+ * @param list The list to extract data from
+ * @return The buffer which once belonged to the list.
+ */
+void* jwtListReclaim(JwtList* list);
 
 /**
  * Dynamic-dispatch table for specializations of hash tables.
