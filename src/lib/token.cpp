@@ -1,3 +1,12 @@
+/**
+ * Josh Wallentine
+ * Created 10/32/25
+ * Modified 10/27/25
+ *
+ * Implementation of token.h
+ */
+
+
 #include "algorithm.hpp"
 #include "util.hpp"
 
@@ -89,7 +98,7 @@ int32_t writeSignedToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey* 
     JWT_CHECK(jwt::generateSignature(toSignData, key, algorithm, span, &length));
 
     jwtWriterWrite(out, ".", 1, nullptr);
-    jwt::b64url::encode(span.data, span.length, out);
+    jwt::b64url::encode(span.data, length, out);
 
     return 0;
 }

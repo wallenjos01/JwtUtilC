@@ -1,7 +1,7 @@
 /**
  * Josh Wallentine
  * Created 9/30/25
- * Modified 10/23/25
+ * Modified 10/27/25
  *
  * Implementation of algorithm.hpp
 */
@@ -15,11 +15,19 @@
 #include <iostream>
 #include <openssl/crypto.h>
 #include <openssl/ec.h>
+#include <openssl/ecdsa.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/obj_mac.h>
 #include <openssl/param_build.h>
 #include <openssl/rsa.h>
+
+// This is in a private OpenSSL header, but all other methods to get these
+// numbers for an EC signature are deprecated.
+struct ECDSA_SIG_st {
+    BIGNUM* r;
+    BIGNUM* s;
+};
 
 namespace {
 
@@ -326,6 +334,10 @@ int32_t jwt::generateSignature(Span<uint8_t> input, JwtKey* key,
     size_t requiredLen = 0;
     int32_t result = 0;
 
+    if(key->type == JWT_KEY_TYPE_ELLIPTIC_CURVE) {
+
+    }
+
     const char* digest = getDigestForAlgorithm(algorithm);
     if (digest == nullptr) {
         std::cerr << "Unable to find digest\n";
@@ -380,6 +392,22 @@ int32_t jwt::generateSignature(Span<uint8_t> input, JwtKey* key,
         goto cleanup;
     }
 
+    if(key->type == JWT_KEY_TYPE_ELLIPTIC_CURVE) {
+        ECDSA_SIG* realSig = nullptr;
+        const uint8_t* der = output.data;
+        d2i_ECDSA_SIG(&realSig, &der, requiredLen);
+
+        memset(output.data, 0, output.length);
+        size_t siglen = BN_num_bytes(realSig->r);
+
+        BN_bn2binpad(realSig->r, output.data, siglen);
+        BN_bn2binpad(realSig->s, output.data + siglen, siglen);
+
+        if(sigLength) *sigLength = siglen * 2;
+
+    } else {
+        if(sigLength) *sigLength = requiredLen;
+    }
 cleanup:
 
     EVP_MD_free(md);
