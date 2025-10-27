@@ -13,10 +13,12 @@ namespace jwt {
 
 int32_t parseAlgorithm(JwtAlgorithm* alg, JwtString str);
 
-int32_t generateHmac(Span<uint8_t> input, JwtKey key, JwtAlgorithm algorithm,
+const char* getAlgorithmName(JwtAlgorithm alg);
+
+int32_t generateHmac(Span<uint8_t> input, JwtKey* key, JwtAlgorithm algorithm,
                      Span<uint8_t> output, size_t* macLength);
 
-int32_t generateSignature(Span<uint8_t> input, JwtKey key,
+int32_t generateSignature(Span<uint8_t> input, JwtKey* key,
                           JwtAlgorithm algorithm, Span<uint8_t> output,
                           size_t* sigLength);
 

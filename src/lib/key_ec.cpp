@@ -7,8 +7,12 @@
  * See also key.cpp, key_rsa.cpp
  */
 
+#include <iomanip>
+#include <ios>
+#include <iostream>
 #include <jwt/json.h>
 #include <jwt/key.h>
+#include <openssl/core.h>
 #include <openssl/core_names.h>
 #include <openssl/ec.h>
 #include <openssl/err.h>
@@ -52,14 +56,26 @@ int32_t parseCurve(Curve* curve, JwtString str) {
 const char* getCurveName(Curve curve) {
     switch (curve) {
     case P256:
-        return "prime256v1";
+        return "P-256";
+        //return "prime256v1";
     case P384:
-        return "secp384r1";
+        return "P-384";
+        //return "secp384r1";
     case P521:
-        return "secp521r1";
+        return "P-521";
+        //return "secp521r1";
     default:
         return nullptr;
     }
+}
+
+int32_t getCurveNid(Curve curve) {
+    switch(curve) {
+        case P256: return NID_X9_62_prime256v1;
+        case P384: return NID_secp384r1;
+        case P521: return NID_secp521r1;
+    }
+    return -1;
 }
 
 } // namespace
@@ -88,8 +104,8 @@ JwtKeyParseResult jwt::parseEcKey(JwtKey* key, JwtJsonObject obj) {
     Span<uint8_t> ys = {};
     Span<uint8_t> ds = {};
 
-    BIGNUM* x;
-    BIGNUM* y;
+    //BIGNUM* x;
+    //BIGNUM* y;
     BIGNUM* d;
 
     CHECK(jwt::b64url::decodeNew(xB64.data, xB64.length, &xs),
@@ -102,23 +118,39 @@ JwtKeyParseResult jwt::parseEcKey(JwtKey* key, JwtJsonObject obj) {
               JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
     }
 
-    x = BN_bin2bn(xs.data, xs.length, nullptr);
-    y = BN_bin2bn(ys.data, ys.length, nullptr);
+    size_t coordLen = COORD_LEN[curve];
+    if(xs.length != coordLen || ys.length != coordLen) {
+        return JWT_KEY_PARSE_RESULT_KEY_CREATE_FAILED;
+    }
+
+    size_t keyLen = (coordLen * 2) + 1;
+    Span<uint8_t> publicKey(new uint8_t[keyLen], keyLen);
+
+    publicKey[0] = 4;
+    memcpy(publicKey.data + 1, xs.data, xs.length);
+    memcpy(publicKey.data + 1 + coordLen, ys.data, ys.length);
+
+    //x = BN_bin2bn(xs.data, xs.length, nullptr);
+    //y = BN_bin2bn(ys.data, ys.length, nullptr);
 
     if (ds.data) {
         d = BN_bin2bn(ds.data, ds.length, nullptr);
     }
-
-    OSSL_PARAM_BLD* paramBuilder = OSSL_PARAM_BLD_new();
     const char* curveName = getCurveName(curve);
 
-    OSSL_PARAM_BLD_push_int(paramBuilder,
-                            OSSL_PKEY_PARAM_EC_DECODED_FROM_EXPLICIT_PARAMS, 0);
+    OSSL_PARAM_BLD* paramBuilder = OSSL_PARAM_BLD_new();
+
     OSSL_PARAM_BLD_push_utf8_string(paramBuilder, OSSL_PKEY_PARAM_GROUP_NAME,
                                     curveName, strlen(curveName));
+    //OSSL_PARAM_BLD_push_utf8_string(paramBuilder, OSSL_PKEY_PARAM_EC_FIELD_TYPE, "prime-field", 11);
+    //OSSL_PARAM_BLD_push_int(paramBuilder, OSSL_PKEY_PARAM_EC_DECODED_FROM_EXPLICIT_PARAMS, 0);
+    //OSSL_PARAM_BLD_push_int(paramBuilder, OSSL_PKEY_PARAM_USE_COFACTOR_ECDH, 0);
+    //OSSL_PARAM_BLD_push_utf8_string(paramBuilder, OSSL_PKEY_PARAM_EC_GROUP_CHECK_TYPE, "named", 5);
+    //OSSL_PARAM_BLD_push_utf8_string(paramBuilder, OSSL_PKEY_PARAM_EC_POINT_CONVERSION_FORMAT, "uncompressed", 13);
 
-    OSSL_PARAM_BLD_push_BN(paramBuilder, OSSL_PKEY_PARAM_EC_PUB_X, x);
-    OSSL_PARAM_BLD_push_BN(paramBuilder, OSSL_PKEY_PARAM_EC_PUB_Y, y);
+    //OSSL_PARAM_BLD_push_BN(paramBuilder, OSSL_PKEY_PARAM_EC_PUB_X, x);
+    //OSSL_PARAM_BLD_push_BN(paramBuilder, OSSL_PKEY_PARAM_EC_PUB_Y, y);
+    OSSL_PARAM_BLD_push_octet_string(paramBuilder, OSSL_PKEY_PARAM_PUB_KEY, publicKey.data, publicKey.length);
 
     if (d) {
         OSSL_PARAM_BLD_push_BN(paramBuilder, OSSL_PKEY_PARAM_PRIV_KEY, d);
@@ -126,14 +158,15 @@ JwtKeyParseResult jwt::parseEcKey(JwtKey* key, JwtJsonObject obj) {
 
     OSSL_PARAM* params = OSSL_PARAM_BLD_to_param(paramBuilder);
     OSSL_PARAM_BLD_free(paramBuilder);
-    BN_free(x);
-    BN_free(y);
+    //BN_free(x);
+    //BN_free(y);
     BN_free(d);
 
     JwtKeyParseResult result = JWT_KEY_PARSE_RESULT_SUCCESS;
 
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr);
     if (ctx == nullptr) {
+        OSSL_PARAM_free(params);
         return JWT_KEY_PARSE_RESULT_UNEXPECTED_ERROR;
     }
 
@@ -146,6 +179,10 @@ JwtKeyParseResult jwt::parseEcKey(JwtKey* key, JwtJsonObject obj) {
         ERR_print_errors_fp(stderr);
         result = JWT_KEY_PARSE_RESULT_KEY_CREATE_FAILED;
     }
+
+    OSSL_PARAM* outParams;
+    EVP_PKEY_todata(*pkey, selection, &outParams);
+    printOsslParams(outParams);
 
     OSSL_PARAM_free(params);
     EVP_PKEY_CTX_free(ctx);

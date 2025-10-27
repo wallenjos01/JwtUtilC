@@ -4,7 +4,7 @@
  * Modified 10/23/25
  *
  * Implementation of algorithm.hpp
- */
+*/
 
 #include "algorithm.hpp"
 #include "hash.hpp"
@@ -12,11 +12,13 @@
 #include "jwt/key.h"
 #include "jwt/stream.h"
 
+#include <iostream>
 #include <openssl/crypto.h>
 #include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/obj_mac.h>
+#include <openssl/param_build.h>
 #include <openssl/rsa.h>
 
 namespace {
@@ -70,22 +72,16 @@ int32_t setupContextForAlgorithm(EVP_PKEY_CTX* keyContext,
     case JWT_ALGORITHM_RS256:
     case JWT_ALGORITHM_RS384:
     case JWT_ALGORITHM_RS512:
-        EVP_PKEY_CTX_set_rsa_padding(keyContext, RSA_PKCS1_PADDING);
+        if(EVP_PKEY_CTX_set_rsa_padding(keyContext, RSA_PKCS1_PADDING) <= 0) return -1;
         break;
     case JWT_ALGORITHM_ES256:
-        EVP_PKEY_CTX_set_ec_paramgen_curve_nid(keyContext,
-                                               NID_X9_62_prime256v1);
-        break;
     case JWT_ALGORITHM_ES384:
-        EVP_PKEY_CTX_set_ec_paramgen_curve_nid(keyContext, NID_secp384r1);
-        break;
     case JWT_ALGORITHM_ES512:
-        EVP_PKEY_CTX_set_ec_paramgen_curve_nid(keyContext, NID_secp521r1);
         break;
     case JWT_ALGORITHM_PS256:
     case JWT_ALGORITHM_PS384:
     case JWT_ALGORITHM_PS512:
-        EVP_PKEY_CTX_set_rsa_padding(keyContext, RSA_PKCS1_PSS_PADDING);
+        if(EVP_PKEY_CTX_set_rsa_padding(keyContext, RSA_PKCS1_PSS_PADDING) <= 0) return -1;
         break;
     default:
         return -1; // Unsupported algorithm for PKEY
@@ -215,11 +211,54 @@ int32_t jwt::parseAlgorithm(JwtAlgorithm* alg, JwtString str) {
     return 0;
 }
 
-int32_t jwt::generateHmac(Span<uint8_t> input, JwtKey key,
+const char* jwt::getAlgorithmName(JwtAlgorithm algorithm) {
+    switch (algorithm) {
+        case JWT_ALGORITHM_NONE: return "none";
+        case JWT_ALGORITHM_HS256: return "HS256";
+        case JWT_ALGORITHM_HS384: return "HS384";
+        case JWT_ALGORITHM_HS512: return "HS512";
+        case JWT_ALGORITHM_RS256: return "RS256";
+        case JWT_ALGORITHM_RS384: return "RS384";
+        case JWT_ALGORITHM_RS512: return "RS512";
+        case JWT_ALGORITHM_ES256: return "ES256";
+        case JWT_ALGORITHM_ES384: return "ES384";
+        case JWT_ALGORITHM_ES512: return "ES512";
+        case JWT_ALGORITHM_PS256: return "PS256";
+        case JWT_ALGORITHM_PS384: return "PS384";
+        case JWT_ALGORITHM_PS512: return "PS512";
+        case JWT_ALGORITHM_RSA1_5: return "RSA1_5";
+        case JWT_ALGORITHM_RSA_OAEP: return "RSA-OAEP";
+        case JWT_ALGORITHM_RSA_OAEP_256: return "RSA-OAEP-256";
+        case JWT_ALGORITHM_A128KW: return "A128KW";
+        case JWT_ALGORITHM_A192KW: return "A192KW";
+        case JWT_ALGORITHM_A256KW: return "A256KW";
+        case JWT_ALGORITHM_DIRECT: return "dir";
+        case JWT_ALGORITHM_ECDH_ES: return "ECDH-ES";
+        case JWT_ALGORITHM_ECDH_ES_A128KW: return "ECDH-ES+A128KW";
+        case JWT_ALGORITHM_ECDH_ES_A192KW: return "ECDH-ES+A192KW";
+        case JWT_ALGORITHM_ECDH_ES_A256KW: return "ECDH-ES+A256KW";
+        case JWT_ALGORITHM_A128GCMKW: return "A128GCMKW";
+        case JWT_ALGORITHM_A192GCMKW: return "A192GCMKW";
+        case JWT_ALGORITHM_A256GCMKW: return "A256GCMKW";
+        case JWT_ALGORITHM_PBES_HS256_A128KW: return "PBES2-HS256+A128KW";
+        case JWT_ALGORITHM_PBES_HS384_A192KW: return "PBES2-HS384+A192KW";
+        case JWT_ALGORITHM_PBES_HS512_A256KW: return "PBES2-HS512+A256KW";
+        case JWT_ALGORITHM_A128CBC_HS256: return "A128CBC-HS256";
+        case JWT_ALGORITHM_A192CBC_HS384: return "A192CBC-HS384";
+        case JWT_ALGORITHM_A256CBC_HS512: return "A256CBC-HS512";
+        case JWT_ALGORITHM_A128GCM: return "A128GCM";
+        case JWT_ALGORITHM_A192GCM: return "A192GCM";
+        case JWT_ALGORITHM_A256GCM: return "A256GCM";
+        default: return nullptr;
+    }
+}
+
+
+int32_t jwt::generateHmac(Span<uint8_t> input, JwtKey* key,
                           JwtAlgorithm algorithm, Span<uint8_t> output,
                           size_t* macLength) {
 
-    if (key.type != JWT_KEY_TYPE_OCTET_SEQUENCE) {
+    if (key->type != JWT_KEY_TYPE_OCTET_SEQUENCE) {
         return -1;
     }
 
@@ -234,7 +273,7 @@ int32_t jwt::generateHmac(Span<uint8_t> input, JwtKey key,
         return -3;
     }
 
-    Span<uint8_t>* keyData = static_cast<Span<uint8_t>*>(key.keyData);
+    Span<uint8_t>* keyData = static_cast<Span<uint8_t>*>(key->keyData);
 
     OSSL_PARAM params[2];
     params[0] = OSSL_PARAM_construct_utf8_string(
@@ -273,84 +312,80 @@ int32_t jwt::generateHmac(Span<uint8_t> input, JwtKey key,
     return 0;
 }
 
-int32_t jwt::generateSignature(Span<uint8_t> input, JwtKey key,
+int32_t jwt::generateSignature(Span<uint8_t> input, JwtKey* key,
                                JwtAlgorithm algorithm, Span<uint8_t> output,
                                size_t* sigLength) {
-
+ 
     if (input.length == 0 || input.data == nullptr) {
         return 0;
     }
-    if (key.keyData == nullptr || key.type == JWT_KEY_TYPE_OCTET_SEQUENCE) {
+    if (key->keyData == nullptr || key->type == JWT_KEY_TYPE_OCTET_SEQUENCE) {
         return -1;
     }
 
-    EVP_PKEY* pkey = static_cast<EVP_PKEY*>(key.keyData);
-    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_pkey(nullptr, pkey, nullptr);
-    if (ctx == nullptr) {
-        return -2;
-    }
-
-    if (setupContextForAlgorithm(ctx, algorithm) != 0) {
-        EVP_PKEY_CTX_free(ctx);
-        return -3;
-    }
+    size_t requiredLen = 0;
+    int32_t result = 0;
 
     const char* digest = getDigestForAlgorithm(algorithm);
     if (digest == nullptr) {
-        EVP_PKEY_CTX_free(ctx);
-        return -4;
+        std::cerr << "Unable to find digest\n";
+        return -2;
     }
 
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
     EVP_MD* md = EVP_MD_fetch(nullptr, digest, nullptr);
-    if (md == nullptr) {
-        EVP_PKEY_CTX_free(ctx);
-        return -5;
-    }
 
-    EVP_PKEY_CTX_set_signature_md(ctx, md);
+    EVP_PKEY* pkey = static_cast<EVP_PKEY*>(key->keyData);
+    EVP_PKEY_CTX* pctx = nullptr;
 
-    if (EVP_PKEY_sign_init(ctx) <= 0) {
-        EVP_MD_free(md);
-        EVP_PKEY_CTX_free(ctx);
-        return -6;
-    }
-
-    size_t outputSize = 0;
-    if (EVP_PKEY_sign(ctx, nullptr, &outputSize, input.data, input.length) !=
-        1) {
-        EVP_MD_free(md);
-        EVP_PKEY_CTX_free(ctx);
+    if(EVP_DigestSignInit(ctx, &pctx, md, nullptr, pkey) <= 0) {
         ERR_print_errors_fp(stderr);
-        return -7;
+        result = -3;
+        goto cleanup;
     }
 
-    if (sigLength)
-        *sigLength = outputSize;
-
-    if (output.data == nullptr) {
-        EVP_MD_free(md);
-        EVP_PKEY_CTX_free(ctx);
-        return 0;
-    }
-
-    if (outputSize > output.length) {
-        EVP_MD_free(md);
-        EVP_PKEY_CTX_free(ctx);
-        return -8;
-    }
-
-    if (EVP_PKEY_sign(ctx, output.data, &outputSize, input.data,
-                      input.length) <= 0) {
-
-        EVP_MD_free(md);
-        EVP_PKEY_CTX_free(ctx);
+    if(setupContextForAlgorithm(pctx, algorithm) != 0) {
         ERR_print_errors_fp(stderr);
-        return -9;
+        result = -4;
+        goto cleanup;
     }
+
+    if(EVP_DigestSignUpdate(ctx, input.data, input.length) <= 0) {
+        ERR_print_errors_fp(stderr);
+        result = -5;
+        goto cleanup;
+    }
+
+    if(EVP_DigestSignFinal(ctx, nullptr, &requiredLen) <= 0) {
+        ERR_print_errors_fp(stderr);
+        result = -6;
+        goto cleanup;
+    }
+
+    if(sigLength) *sigLength = requiredLen;
+
+    if(output.data == nullptr) {
+        goto cleanup;
+    }
+
+    if(output.length < requiredLen) {
+        ERR_print_errors_fp(stderr);
+        result = -7;
+        goto cleanup;
+    }
+
+    if(EVP_DigestSignFinal(ctx, output.data, &requiredLen) <= 0) {
+        ERR_print_errors_fp(stderr);
+        result = -8;
+        goto cleanup;
+    }
+
+cleanup:
 
     EVP_MD_free(md);
-    EVP_PKEY_CTX_free(ctx);
-    return 0;
+    EVP_MD_CTX_destroy(ctx);
+    return result;
+
 }
 
 int32_t jwt::b64url::encode(const void *data, size_t dataLength, JwtWriter writer) {

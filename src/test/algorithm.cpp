@@ -115,39 +115,7 @@ TEST(RSA, ParseAndSign) {
         "jU1rP8OksE\",\"qi\":"
         "\"yJcyXiqwsaK4ZMjMInUxJ5bFoXgjzAunesbq7l9qkt7mqMSQZSibVmHytHDMJ_"
         "OYoNz1djhGnIKOvLy09Vx1eMN9VdEbKlVbqa4p56aoiC3Vya03gyBdAkVx-"
-        "vV1QJlQGDxQVCnQ6qATb4kAwvb7QsGirm0Fu2uEpLhGqIs4png\",\"ext\":true,"
-        "\"kid\":\"e9b95e0358635027592f\",\"alg\":\"RS256\",\"use\":\"sig\"}";
-
-    JwtJsonElement element = {};
-    jwtReadJsonString(&element, keyJson, strlen(keyJson));
-
-    JwtKey key = {};
-    int32_t keyRes = jwtKeyParse(&key, jwtJsonElementAsObject(element));
-    ASSERT_EQ(0, keyRes);
-
-    const char* message = "Hello, World";
-    uint8_t output[512] = {};
-    size_t outputLength = 0;
-
-    int32_t out = jwt::generateSignature(
-        Span<uint8_t>(reinterpret_cast<uint8_t*>(const_cast<char*>(message)),
-                      strlen(message)),
-        key, JWT_ALGORITHM_PS256, Span<uint8_t>(output, 512), &outputLength);
-
-    ASSERT_EQ(0, out);
-
-    jwtJsonElementDestroy(&element);
-    jwtKeyDestroy(&key);
-}
-
-TEST(EC, ParseAndSign) {
-    const char* keyJson =
-        "{\"kty\":\"EC\",\"crv\":\"p521\",\"x\":\"Af70NWAuv0rmWnErVm7uXTHF3X-"
-        "JXEhP0kPUwzGVutjlethYF43mmsqTUy-8J_ADcHmWp_Oa5pqUMwMa4J2HKFuO\",\"y\":"
-        "\"ARLELkpq3QzH4NXGvvttQPROcRwSvt7v0-3N-yAPPWov2npXaxJPL-"
-        "xmqt9iaHAfixB4X-IWpENW5ya1esp5n7Xi\",\"ext\":true,\"d\":"
-        "\"AcsCPrlGD72iYoyLu8y23rWnrojwsjfRr8SxBA3KtFVCY0Eh0hDwxL55S2IuJD2PFp8g"
-        "0vvhq_9W9IY3I-M2sxUd\",\"kid\":\"6b3d916cf330112c771654f912f623\","
+        "vV1QJlQGDxQVCnQ6qATb4kAwvb7QsGirm0Fu2uEpLhGqIs4png\","
         "\"alg\":\"RS256\",\"use\":\"sig\"}";
 
     JwtJsonElement element = {};
@@ -164,7 +132,39 @@ TEST(EC, ParseAndSign) {
     int32_t out = jwt::generateSignature(
         Span<uint8_t>(reinterpret_cast<uint8_t*>(const_cast<char*>(message)),
                       strlen(message)),
-        key, JWT_ALGORITHM_ES512, Span<uint8_t>(output, 512), &outputLength);
+        &key, JWT_ALGORITHM_PS256, Span<uint8_t>(output, 512), &outputLength);
+
+    ASSERT_EQ(0, out);
+
+    jwtJsonElementDestroy(&element);
+    jwtKeyDestroy(&key);
+}
+
+TEST(EC, ParseAndSign) {
+    const char* keyJson =
+        "{\"kty\":\"EC\","
+        "\"crv\":\"P-256\","
+        "\"x\":\"rrwq-1lwloY2pjJQE_oapmXKOEMkDSu59hU3ROE_1vo\","
+        "\"y\":\"I1MuspBp4orW2uIhF3WGcShGr2xT8R59argUv4UbwLE\","
+        "\"d\":\"KL78nYZ0H75mAjxj6Bu8rw6cB9aW7OehdvAXOM5TOUA\","  
+        "\"use\":\"sig\","
+        "\"kid\":\"1\"}";
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, keyJson, strlen(keyJson));
+
+    JwtKey key = {};
+    int32_t keyRes = jwtKeyParse(&key, jwtJsonElementAsObject(element));
+    ASSERT_EQ(0, keyRes);
+
+    const char* message = "Hello, World";
+    uint8_t output[512] = {};
+    size_t outputLength = 0;
+
+    int32_t out = jwt::generateSignature(
+        Span<uint8_t>(reinterpret_cast<uint8_t*>(const_cast<char*>(message)),
+                      strlen(message)),
+        &key, JWT_ALGORITHM_ES256, Span<uint8_t>(output, 512), &outputLength);
 
     ASSERT_EQ(0, out);
 

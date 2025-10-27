@@ -2,11 +2,21 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <iostream>
+#include <openssl/core.h>
 #include <string>
 
 #define CHECK(condition, ret)                                                  \
     if (condition != 0) {                                                      \
         return ret;                                                            \
+    }
+
+#define JWT_CHECK(condition)                                                  \
+    {                                                                         \
+        int32_t ret = condition;                                              \
+        if(ret != 0) {                                                        \
+            return ret;                                                       \
+        }                                                                     \
     }
 
 template <typename T> struct Span {
@@ -50,4 +60,41 @@ inline std::string toHex(const uint8_t* data, size_t length) {
     }
 
     return out;
+}
+
+inline void printOsslParams(OSSL_PARAM* param) {
+    while(param->key != nullptr) {
+        std::cout << param->key << ": ";
+        switch(param->data_type) {
+            case OSSL_PARAM_INTEGER:
+                std::cout << *static_cast<int*>(param->data);
+                break;
+            case OSSL_PARAM_UNSIGNED_INTEGER:
+                std::cout << *static_cast<unsigned int*>(param->data);
+                break;
+            case OSSL_PARAM_REAL:
+                std::cout << *static_cast<float*>(param->data);
+                break;
+            case OSSL_PARAM_UTF8_STRING:
+                std::cout << static_cast<char*>(param->data);
+                break;
+            case OSSL_PARAM_OCTET_STRING:
+                for(auto i = 0 ; i < param->data_size ; i++) {
+                    unsigned char b = static_cast<unsigned char*>(param->data)[i];
+                    std::cout << std::hex << (int) b;
+                }
+                break;
+            case OSSL_PARAM_UTF8_PTR:
+                std::cout << *static_cast<char**>(param->data);
+                break;
+            case OSSL_PARAM_OCTET_PTR:
+                for(auto i = 0 ; i < param->data_size ; i++) {
+                    unsigned char b = *static_cast<unsigned char**>(param->data)[i];
+                    std::cout << std::hex << (int) b;
+                }
+                break;
+        }
+        std::cout << "\n";
+        param++;
+    }
 }

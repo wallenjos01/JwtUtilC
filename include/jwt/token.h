@@ -18,17 +18,23 @@ const char* const JWT_CLAIM_JWT_ID = "jti";
 
 /**
  * Creates an unprotected JSON Web Token with the given payload.
- * @return A heap-allocated string containing an unsecured JWT in compact form
+ * @param payload The JWT payload
+ * @param out A pointer to a string which will be filled with a heap-allocated string containing an unsecured JWT in compact form
+ * @return 0 on success, or some error code
  * @see RFC 7519 (https://www.rfc-editor.org/rfc/rfc7519#section-6)
  */
-JwtString jwtCreateUnprotectedToken(JwtJsonObject payload);
+int32_t jwtCreateUnprotectedToken(JwtJsonObject* payload, JwtString* out);
 
 /**
  * Creates a JSON Web Token with the given payload, protected with the given key and algorithm.
- * @return A heap-allocated string containing a JWT in compact form
+ * @param payload The JWT payload
+ * @param key The key to use to project the token
+ * @param algorithm The algorithm to use to sign or encrypt the token
+ * @param out A pointer to a string which will be filled with a heap-allocated string containing a JWT in compact form
+ * @return 0 on success, or some error code
  * @see RFC 7519 (https://www.rfc-editor.org/rfc/rfc7519#appendix-A.1)
  */
-JwtString jwtCreateToken(JwtJsonObject payload, JwtKey key, JwtAlgorithm algorithm);
+int32_t jwtCreateToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtString* out);
 
 #ifdef __cplusplus
 }
