@@ -122,7 +122,7 @@ TEST(RSA, ParseAndSign) {
     jwtReadJsonString(&element, keyJson, strlen(keyJson));
 
     JwtKey key = {};
-    int32_t keyRes = jwtKeyParse(&key, jwtJsonElementAsObject(element));
+    int32_t keyRes = jwtKeyParse(&key, &element.object);
     ASSERT_EQ(0, keyRes);
 
     const char* message = "Hello, World";
@@ -154,7 +154,7 @@ TEST(EC, ParseAndSign) {
     jwtReadJsonString(&element, keyJson, strlen(keyJson));
 
     JwtKey key = {};
-    int32_t keyRes = jwtKeyParse(&key, jwtJsonElementAsObject(element));
+    int32_t keyRes = jwtKeyParse(&key, &element.object);
     ASSERT_EQ(0, keyRes);
 
     const char* message = "Hello, World";

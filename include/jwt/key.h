@@ -176,6 +176,9 @@ enum JwtKeyParseResult {
     JWT_KEY_PARSE_RESULT_KEY_CREATE_FAILED = -7,
     JWT_KEY_PARSE_RESULT_UNKNOWN_CURVE = -8,
     JWT_KEY_PARSE_RESULT_UNEXPECTED_ERROR = -9,
+    JWT_KEY_PARSE_RESULT_NOT_A_LIST = -10,
+    JWT_KEY_PARSE_RESULT_NOT_AN_OBJECT = -11,
+    JWT_KET_PARSE_RESULT_DUPLICATE_ID = -12
 };
 
 /**
@@ -184,16 +187,7 @@ enum JwtKeyParseResult {
  * @param obj The object to parse
  * @return 0 on success, or some error code
  */
-JwtKeyParseResult jwtKeyParse(JwtKey* key, JwtJsonObject obj);
-
-/**
- * @brief Creates a new JWK with the given algorithm and operations
- * @param key A pointer to the place to store the output key
- * @param algorithm The algorithm to use for the key
- * @param operations The operations valid for this key
- * @return 0 on success, or some error code
- */
-int32_t jwtKeyGenerate(JwtKey* key, JwtAlgorithm algorithm, uint8_t operations);
+JwtKeyParseResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj);
 
 /**
  * @brief Destroys the given JWK
@@ -201,7 +195,28 @@ int32_t jwtKeyGenerate(JwtKey* key, JwtAlgorithm algorithm, uint8_t operations);
  */
 void jwtKeyDestroy(JwtKey* key);
 
-void deleteme_test();
+
+/**
+ * Represents a set of zero or more JWKs
+ */
+typedef struct JwtKeySet {
+    JwtKey* keys;
+    size_t count;
+} JwtKeySet;
+
+/**
+ * @brief Attempts to parse a JWK set from the given JSON object
+ * @param keySet A pointer to the place to store the output keys
+ * @param obj The object to parse
+ * @return 0 on success, or some error code
+ */
+JwtKeyParseResult jwtKeySetParse(JwtKeySet* keySet, JwtJsonObject* obj);
+
+/**
+ * @brief Destroys the given JWK set
+ * @param keySet The key set to destroy
+ */
+void jwtKeySetDestroy(JwtKeySet* keySet);
 
 #ifdef __cplusplus
 }

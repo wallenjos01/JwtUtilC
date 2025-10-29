@@ -16,6 +16,7 @@ const char* const JWT_CLAIM_NOT_BEFORE = "nbf";
 const char* const JWT_CLAIM_ISSUED_AT = "iat";
 const char* const JWT_CLAIM_JWT_ID = "jti";
 
+
 /**
  * Creates an unprotected JSON Web Token with the given payload.
  * @param payload The JWT payload
@@ -35,6 +36,23 @@ int32_t jwtCreateUnprotectedToken(JwtJsonObject* payload, JwtString* out);
  * @see RFC 7519 (https://www.rfc-editor.org/rfc/rfc7519#appendix-A.1)
  */
 int32_t jwtCreateToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtString* out);
+
+
+int32_t jwtReadTokenHeader(JwtString token, JwtJsonObject* out);
+
+
+typedef struct JwtParsedToken {
+    JwtJsonObject header;
+    JwtJsonObject payload;
+    JwtAlgorithm algorithm;
+} JwtParsedToken;
+
+
+int32_t jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, bool allowUnprotected);
+
+
+int32_t jwtVerifyTokenWithSet(JwtString token, JwtKey* key, JwtParsedToken* out, bool allowUnprotected);
+
 
 #ifdef __cplusplus
 }

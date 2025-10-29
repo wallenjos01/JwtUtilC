@@ -22,6 +22,12 @@ int32_t generateSignature(Span<uint8_t> input, JwtKey* key,
                           JwtAlgorithm algorithm, Span<uint8_t> output,
                           size_t* sigLength);
 
+int32_t validateHmac(Span<uint8_t> input, Span<uint8_t> mac, JwtKey* key, 
+                     JwtAlgorithm algorithm);
+
+int32_t validateSignature(Span<uint8_t> input, Span<uint8_t> signature, 
+                          JwtKey* key, JwtAlgorithm algorithm);
+
 namespace b64url {
 
 int32_t encode(const void* data, size_t dataLength, JwtWriter writer);

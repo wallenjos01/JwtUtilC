@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
     jwtReadJsonString(&element, keyJson, strlen(keyJson));
 
     JwtKey key = {};
-    jwtKeyParse(&key, jwtJsonElementAsObject(element));
+    jwtKeyParse(&key, &element.object);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);

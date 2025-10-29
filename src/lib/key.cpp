@@ -98,26 +98,26 @@ int32_t parseKeyOps(uint8_t* bitset, JwtJsonArray array) {
 
 } // namespace
 
-JwtKeyParseResult jwtKeyParse(JwtKey* key, JwtJsonObject obj) {
+JwtKeyParseResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj) {
 
-    JwtString kty = jwtJsonObjectGetString(&obj, "kty");
+    JwtString kty = jwtJsonObjectGetString(obj, "kty");
     if (kty.data == nullptr || parseKeyType(&key->type, kty) != 0) {
         return JWT_KEY_PARSE_RESULT_UNKNOWN_KEY_TYPE;
     }
 
-    JwtString use = jwtJsonObjectGetString(&obj, "use");
+    JwtString use = jwtJsonObjectGetString(obj, "use");
     key->use = JWT_KEY_USE_UNKNOWN;
     if (use.data && parseKeyUse(&key->use, use) != 0) {
         return JWT_KEY_PARSE_RESULT_UNKNOWN_KEY_USE;
     }
 
-    JwtJsonArray keyOps = jwtJsonObjectGetArray(&obj, "key_ops");
+    JwtJsonArray keyOps = jwtJsonObjectGetArray(obj, "key_ops");
     key->operations = 0;
     if (keyOps.head && parseKeyOps(&key->operations, keyOps) != 0) {
         return JWT_KEY_PARSE_RESULT_UNKNOWN_OPERATION;
     }
 
-    JwtString alg = jwtJsonObjectGetString(&obj, "alg");
+    JwtString alg = jwtJsonObjectGetString(obj, "alg");
     key->algorithm = JWT_ALGORITHM_UNKNOWN;
     if (alg.data && jwt::parseAlgorithm(&key->algorithm, alg) != 0) {
         return JWT_KEY_PARSE_RESULT_UNKNOWN_ALGORITHM;
@@ -148,9 +148,9 @@ void jwtKeyDestroy(JwtKey* key) {
     }
 }
 
-JwtKeyParseResult jwt::parseOctKey(JwtKey* key, JwtJsonObject obj) {
+JwtKeyParseResult jwt::parseOctKey(JwtKey* key, JwtJsonObject* obj) {
 
-    JwtString kB64 = jwtJsonObjectGetString(&obj, "k"); // Key data
+    JwtString kB64 = jwtJsonObjectGetString(obj, "k"); // Key data
     if (kB64.data == nullptr) {
         return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
     }
@@ -161,4 +161,62 @@ JwtKeyParseResult jwt::parseOctKey(JwtKey* key, JwtJsonObject obj) {
           JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
 
     return JWT_KEY_PARSE_RESULT_SUCCESS;
+}
+
+
+
+JwtKeyParseResult jwtKeySetParse(JwtKeySet* keySet, JwtJsonObject* obj) {
+
+    JwtJsonElement encodedKeys = jwtJsonObjectGet(obj, "keys");
+    if(encodedKeys.type != JWT_JSON_ELEMENT_TYPE_ARRAY) {
+        return JWT_KEY_PARSE_RESULT_NOT_A_LIST;
+    }
+    if(encodedKeys.array.size == 0) {
+        keySet->keys = nullptr;
+        keySet->count = 0;
+    }
+
+    JwtKeyParseResult result = JWT_KEY_PARSE_RESULT_SUCCESS;
+    JwtKey* keys = new JwtKey[encodedKeys.array.size];
+
+    for(auto i = 0 ; i < encodedKeys.array.size ; i++) {
+        JwtJsonElement obj = jwtJsonArrayGet(&encodedKeys.array, i);
+        if(obj.type != JWT_JSON_ELEMENT_TYPE_OBJECT) {
+            return JWT_KEY_PARSE_RESULT_NOT_AN_OBJECT;
+        }
+        result = jwtKeyParse(&keys[i], &obj.object);
+        if(result != JWT_KEY_PARSE_RESULT_SUCCESS) {
+            goto error;
+        }
+
+        if(keys[i].keyId.data != nullptr) {
+            for(auto j = 0 ; j < i ; j++) {
+                JwtKey* other = &keys[j];
+                if(other->keyId.data != nullptr 
+                    && other->keyId.length == keys[i].keyId.length 
+                    && memcmp(other->keyId.data, keys[i].keyId.data, keys[i].keyId.length) == 0) {
+
+                    result = JWT_KET_PARSE_RESULT_DUPLICATE_ID;
+                    goto error;
+                }
+            }
+        }
+    }
+
+    keySet->keys = keys;
+    keySet->count = encodedKeys.array.size;
+    return JWT_KEY_PARSE_RESULT_SUCCESS;
+
+error:
+
+    delete[] keys;
+    return result;
+}
+
+void jwtKeySetDestroy(JwtKeySet* keySet) {
+    if(keySet->keys) {
+        delete[] keySet->keys;
+        keySet->keys = nullptr;
+    }
+    keySet->count = 0;
 }

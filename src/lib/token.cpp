@@ -210,3 +210,109 @@ cleanup:
 }
 
 
+int32_t jwtReadTokenHeader(JwtString token, JwtJsonObject* out) {
+
+    size_t firstDot = 0;
+    if(firstIndexOf(token, '.', &firstDot) == -1) {
+        return -1;
+    }
+
+    Span<uint8_t> json = {};
+    if(jwt::b64url::decodeNew(token.data, firstDot, &json) != 0) {
+        return -2;
+    }
+
+    JwtReader headerReader = {};
+    jwtReaderCreateForBuffer(&headerReader, json.data, json.length);
+
+    JwtJsonElement header = {};
+    if(jwtReadJsonReader(&header, headerReader) != 0) {
+        return -3;
+    }
+    if(header.type != JWT_JSON_ELEMENT_TYPE_OBJECT) {
+        jwtJsonElementDestroy(&header);
+        return -4;
+    }
+
+    *out = header.object;
+    return 0;
+}
+
+
+int32_t jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, bool allowUnprotected) {
+
+    size_t firstDot;
+    size_t lastDot;
+    if(firstIndexOf(token, '.', &firstDot) != 0 || lastIndexOf(token, '.', &lastDot) != 0 && firstDot == lastDot) {
+        return -1;
+    }
+
+    JwtJsonObject header;
+    if(jwtReadTokenHeader(token, &header) != 0) {
+        return -2;
+    }
+
+    int32_t result = 0;
+
+    JwtString keyId = jwtJsonObjectGetString(&header, "kid");
+    JwtString algStr = jwtJsonObjectGetString(&header, "alg");
+    JwtAlgorithm alg;
+
+    if(keyId.data != nullptr 
+        && (key->keyId.data == nullptr 
+            || key->keyId.length != keyId.length 
+            || memcmp(key->keyId.data, keyId.data, keyId.length) != 0)) {
+
+        result = -3;
+        goto cleanup;
+    }
+
+    if(jwt::parseAlgorithm(&alg, algStr) != 0) {
+        result = -4;
+        goto cleanup;
+    }
+
+    if(alg == JWT_ALGORITHM_NONE) {
+        result = allowUnprotected ? 0 : -6;
+        goto cleanup;
+    }
+
+    if(key == nullptr || (key->algorithm != JWT_ALGORITHM_UNKNOWN && key->algorithm != alg)) {
+        result = -5;
+        goto cleanup;
+    }
+
+    if(isEncryptionAlgorithm(alg)) {
+        // TODO
+
+    } else if(isHmacAlgorithm(alg)) {
+
+        Span<uint8_t> remaining = {};
+        remaining.data = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(token.data));
+        remaining.length = lastDot;
+
+        Span<uint8_t> mac = {};
+        jwt::b64url::decodeNew(token.data + lastDot + 1, token.length - lastDot - 1, &mac);
+        result = jwt::validateHmac(remaining, mac, key, alg);
+
+    } else {
+        // Signing algorithm
+        Span<uint8_t> remaining = {};
+        remaining.data = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(token.data));
+        remaining.length = lastDot;
+
+        Span<uint8_t> sig = {};
+        jwt::b64url::decodeNew(token.data + lastDot + 1, token.length - lastDot - 1, &sig);
+        result = jwt::validateSignature(remaining, sig, key, alg);
+    }
+
+cleanup:
+
+    jwtJsonObjectDestroy(&header);
+    return result;
+}
+
+
+int32_t jwtVerifyTokenWithSet(JwtString token, JwtKey* key, JwtParsedToken* out, bool allowUnprotected) {
+    return 0;
+}

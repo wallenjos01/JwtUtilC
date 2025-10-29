@@ -4,8 +4,8 @@
 
 namespace jwt {
 
-JwtKeyParseResult parseRsaKey(JwtKey* key, JwtJsonObject obj);
-JwtKeyParseResult parseEcKey(JwtKey* key, JwtJsonObject obj);
-JwtKeyParseResult parseOctKey(JwtKey* key, JwtJsonObject obj);
+JwtKeyParseResult parseRsaKey(JwtKey* key, JwtJsonObject* obj);
+JwtKeyParseResult parseEcKey(JwtKey* key, JwtJsonObject* obj);
+JwtKeyParseResult parseOctKey(JwtKey* key, JwtJsonObject* obj);
 
 } // namespace jwt

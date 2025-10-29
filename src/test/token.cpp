@@ -14,6 +14,7 @@ TEST(Token, GenerateUnprotected) {
     jwtCreateUnprotectedToken(&obj, &str);
 
     ASSERT_STREQ(str.data, "eyJ0eXAiOiJqd3QiLCJhbGciOiJub25lIn0.eyJ0ZXN0Ijo0Mn0.");
+    ASSERT_EQ(0, jwtVerifyToken(str, nullptr, nullptr, true));
 
 }
 
@@ -24,7 +25,7 @@ TEST(Token, GenerateHS256) {
     jwtReadJsonString(&element, keyJson, strlen(keyJson));
 
     JwtKey key;
-    jwtKeyParse(&key, element.object);
+    jwtKeyParse(&key, &element.object);
 
     JwtJsonObject obj;
     jwtJsonObjectCreate(&obj);
@@ -35,6 +36,7 @@ TEST(Token, GenerateHS256) {
 
     ASSERT_STREQ(mac.data, "eyJ0eXAiOiJqd3QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZXN0Ijo0Mn0.sawwoMaSsTQpYK7UOtmAXmD_NENPpofcb2MF2ZKN6vY");
 
+    ASSERT_EQ(0, jwtVerifyToken(mac, &key, nullptr, false));
 }
 
 
@@ -45,7 +47,7 @@ TEST(Token, GenerateRS256) {
     jwtReadJsonString(&element, keyJson, strlen(keyJson));
 
     JwtKey key = {};
-    jwtKeyParse(&key, element.object);
+    jwtKeyParse(&key, &element.object);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
@@ -55,5 +57,68 @@ TEST(Token, GenerateRS256) {
     ASSERT_EQ(0, jwtCreateToken(&obj, &key, JWT_ALGORITHM_RS256, &sig));
 
     ASSERT_STREQ(sig.data, "eyJ0eXAiOiJqd3QiLCJhbGciOiJSUzI1NiJ9.eyJ0ZXN0Ijo0Mn0.GE2qm99AkxEEC6izSbqc-U6Zfi2XsTGKtyX63yabcM-j8-QYLRSYEuaquIxZYvZiCuP5wXtUKJl9Qjz2RDr2AFigLc8kMP70Wl8w8JDkychEmAZe7LxkW6AHPufxG7TqjT_3btM0zzui15T0iFzsSOZYgu96IzJRUBzykwIat4SzL5gUYYCH5kkAXWAmlB0k8NkzU2P2QOCrzSnf_H1pfkpCKS5HO0jewdBA5KmPsq4SPhZ8VmLx0Fqba-_MBzcsDn0MK9tZx7TbkSbeITGkZqUEznBJsXx5xuS5QEmTlzLEvttGUceZ0W36ITF-ZlMZdPalQQi6xuPDV87pUMtGRA");
+
+    ASSERT_EQ(0, jwtVerifyToken(sig, &key, nullptr, false));
+}
+
+TEST(Token, GenerateES256) {
+    const char* keyJson =
+        "{\"kty\":\"EC\","
+        "\"crv\":\"P-256\","
+        "\"x\":\"rrwq-1lwloY2pjJQE_oapmXKOEMkDSu59hU3ROE_1vo\","
+        "\"y\":\"I1MuspBp4orW2uIhF3WGcShGr2xT8R59argUv4UbwLE\","
+        "\"d\":\"KL78nYZ0H75mAjxj6Bu8rw6cB9aW7OehdvAXOM5TOUA\","  
+        "\"use\":\"sig\","
+        "\"kid\":\"1\"}";
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, keyJson, strlen(keyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString sig = {};
+    ASSERT_EQ(0, jwtCreateToken(&obj, &key, JWT_ALGORITHM_ES256, &sig));
+    ASSERT_EQ(0, jwtVerifyToken(sig, &key, nullptr, false));
+}
+
+TEST(Token, ReadHeader) {
+
+    const char* keyJson =
+        "{\"kty\":\"EC\","
+        "\"crv\":\"P-256\","
+        "\"x\":\"rrwq-1lwloY2pjJQE_oapmXKOEMkDSu59hU3ROE_1vo\","
+        "\"y\":\"I1MuspBp4orW2uIhF3WGcShGr2xT8R59argUv4UbwLE\","
+        "\"d\":\"KL78nYZ0H75mAjxj6Bu8rw6cB9aW7OehdvAXOM5TOUA\","  
+        "\"use\":\"sig\","
+        "\"kid\":\"1\"}";
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, keyJson, strlen(keyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString token = {};
+    jwtCreateToken(&obj, &key, JWT_ALGORITHM_ES256, &token);
+
+    
+    JwtJsonObject header = {};
+    ASSERT_EQ(0, jwtReadTokenHeader(token, &header));
+
+    
+    JwtString alg = jwtJsonObjectGetString(&header, "alg"); 
+    ASSERT_STREQ(alg.data, "ES256");
+
+    JwtString typ = jwtJsonObjectGetString(&header, "typ"); 
+    ASSERT_STREQ(typ.data, "jwt");
 
 }

@@ -12,7 +12,9 @@
 #include "jwt/key.h"
 #include "jwt/stream.h"
 
+#include <cstdint>
 #include <iostream>
+#include <openssl/bn.h>
 #include <openssl/crypto.h>
 #include <openssl/ec.h>
 #include <openssl/ecdsa.h>
@@ -334,10 +336,6 @@ int32_t jwt::generateSignature(Span<uint8_t> input, JwtKey* key,
     size_t requiredLen = 0;
     int32_t result = 0;
 
-    if(key->type == JWT_KEY_TYPE_ELLIPTIC_CURVE) {
-
-    }
-
     const char* digest = getDigestForAlgorithm(algorithm);
     if (digest == nullptr) {
         std::cerr << "Unable to find digest\n";
@@ -393,11 +391,12 @@ int32_t jwt::generateSignature(Span<uint8_t> input, JwtKey* key,
     }
 
     if(key->type == JWT_KEY_TYPE_ELLIPTIC_CURVE) {
+
         ECDSA_SIG* realSig = nullptr;
         const uint8_t* der = output.data;
         d2i_ECDSA_SIG(&realSig, &der, requiredLen);
 
-        memset(output.data, 0, output.length);
+        memset(output.data, 0, requiredLen);
         size_t siglen = BN_num_bytes(realSig->r);
 
         BN_bn2binpad(realSig->r, output.data, siglen);
@@ -414,6 +413,102 @@ cleanup:
     EVP_MD_CTX_destroy(ctx);
     return result;
 
+}
+
+int32_t jwt::validateHmac(Span<uint8_t> input, Span<uint8_t> mac, JwtKey* key, 
+                     JwtAlgorithm algorithm) {
+
+    Span<uint8_t> newMac(new uint8_t[mac.length], mac.length);
+
+    JWT_CHECK(generateHmac(input, key, algorithm, newMac, nullptr) != 0);
+    if(newMac.length == mac.length && memcmp(newMac.data, mac.data, mac.length) == 0) {
+        return 0;
+    }
+
+    return 1;
+}
+
+int32_t jwt::validateSignature(Span<uint8_t> input, Span<uint8_t> signature, 
+                          JwtKey* key, JwtAlgorithm algorithm) {
+
+    if (input.length == 0 || input.data == nullptr) {
+        return 0;
+    }
+    if (key->keyData == nullptr || key->type == JWT_KEY_TYPE_OCTET_SEQUENCE) {
+        return -1;
+    }
+
+    int32_t result = 0;
+    const char* digest = getDigestForAlgorithm(algorithm);
+    if (digest == nullptr) {
+        std::cerr << "Unable to find digest\n";
+        return -2;
+    }
+
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    EVP_MD* md = EVP_MD_fetch(nullptr, digest, nullptr);
+
+    EVP_PKEY* pkey = static_cast<EVP_PKEY*>(key->keyData);
+    EVP_PKEY_CTX* pctx = nullptr;
+
+    if(EVP_DigestVerifyInit(ctx, &pctx, md, nullptr, pkey) <= 0) {
+        ERR_print_errors_fp(stderr);
+        result = -3;
+        goto cleanup;
+    }
+
+    if(setupContextForAlgorithm(pctx, algorithm) != 0) {
+        ERR_print_errors_fp(stderr);
+        result = -4;
+        goto cleanup;
+    }
+
+    if(EVP_DigestVerifyUpdate(ctx, input.data, input.length) <= 0) {
+        ERR_print_errors_fp(stderr);
+        result = -5;
+        goto cleanup;
+    }
+
+
+    if(key->type == JWT_KEY_TYPE_ELLIPTIC_CURVE) {
+
+        ECDSA_SIG sig = {};
+
+        size_t length = signature.length / 2;
+        sig.r = BN_bin2bn(signature.data, length, nullptr);
+        sig.s = BN_bin2bn(signature.data + length, length, nullptr);
+
+        uint8_t realSig[512] = {};
+        uint8_t* realSigPtr = realSig;
+
+        size_t sigLength = i2d_ECDSA_SIG(&sig, nullptr);
+        if(sigLength > 512) {
+            result = -6;
+            goto cleanup;
+        }
+        i2d_ECDSA_SIG(&sig, &realSigPtr);
+        
+        BN_free(sig.r);
+        BN_free(sig.s);
+
+        if(EVP_DigestVerifyFinal(ctx, realSig, sigLength) <= 0) {
+            ERR_print_errors_fp(stderr);
+            result = 1;
+        }
+
+    } else {    
+
+        if(EVP_DigestVerifyFinal(ctx, signature.data, signature.length) <= 0) {
+            ERR_print_errors_fp(stderr);
+            result = 1;
+        }
+    }
+
+cleanup:
+    EVP_MD_free(md);
+    EVP_MD_CTX_destroy(ctx);
+
+    return result;
 }
 
 int32_t jwt::b64url::encode(const void *data, size_t dataLength, JwtWriter writer) {

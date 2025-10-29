@@ -92,21 +92,21 @@ struct RsaFactors {
 
 } // namespace
 
-JwtKeyParseResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject obj) {
+JwtKeyParseResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject* obj) {
 
     // TODO: Pad these numbers when converting from Base64
-    JwtString nB64 = jwtJsonObjectGetString(&obj, "n"); // Modulus
-    JwtString eB64 = jwtJsonObjectGetString(&obj, "e"); // Exponent
+    JwtString nB64 = jwtJsonObjectGetString(obj, "n"); // Modulus
+    JwtString eB64 = jwtJsonObjectGetString(obj, "e"); // Exponent
 
     // Required params
     if (nB64.data == nullptr || eB64.data == nullptr) {
         return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
     }
 
-    JwtString dB64 = jwtJsonObjectGetString(&obj, "d"); // Private Exponent
+    JwtString dB64 = jwtJsonObjectGetString(obj, "d"); // Private Exponent
 
-    JwtString pB64 = jwtJsonObjectGetString(&obj, "p"); // First Prime Factor
-    JwtString qB64 = jwtJsonObjectGetString(&obj, "q"); // Second Prime Factor
+    JwtString pB64 = jwtJsonObjectGetString(obj, "p"); // First Prime Factor
+    JwtString qB64 = jwtJsonObjectGetString(obj, "q"); // Second Prime Factor
 
     // If one is present, both must be
     if ((pB64.data == nullptr) != (qB64.data == nullptr)) {
@@ -114,16 +114,16 @@ JwtKeyParseResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject obj) {
     }
 
     JwtString dpB64 =
-        jwtJsonObjectGetString(&obj, "dp"); // First Factor Exponent
+        jwtJsonObjectGetString(obj, "dp"); // First Factor Exponent
     JwtString dqB64 =
-        jwtJsonObjectGetString(&obj, "dq"); // Second Factor Exponent
+        jwtJsonObjectGetString(obj, "dq"); // Second Factor Exponent
 
     JwtString qiB64 =
-        jwtJsonObjectGetString(&obj, "qi"); // Second Factor Coefficient
+        jwtJsonObjectGetString(obj, "qi"); // Second Factor Coefficient
 
     size_t numPrimes = pB64.data ? 2 : 0;
 
-    JwtJsonArray oth = jwtJsonObjectGetArray(&obj, "oth");
+    JwtJsonArray oth = jwtJsonObjectGetArray(obj, "oth");
     if (numPrimes == 0 && oth.head != nullptr) {
         return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
     }

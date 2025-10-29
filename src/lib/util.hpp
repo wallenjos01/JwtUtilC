@@ -1,5 +1,6 @@
 #pragma once
 
+#include "jwt/core.h"
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -27,7 +28,12 @@ template <typename T> struct Span {
     Span() : data(nullptr), length(0), owned(false) {}
     Span(T* data, size_t length) : data(data), length(length), owned(false) {}
 
-    T& operator[](size_t index) { return data[index]; }
+    Span(const Span& other) : data(other.data), length(other.length), owned(false) {}
+    Span(Span&& other) : data(other.data), length(other.length), owned(other.owned) {
+        other.data = nullptr;
+        other.length = 0;
+        other.owned = false;
+    }
 
     ~Span() {
         if (owned && data) {
@@ -36,6 +42,33 @@ template <typename T> struct Span {
         data = nullptr;
         length = 0;
     }
+
+    Span& operator=(const Span& other) {
+        if(&other == this) return *this;
+        this->~Span();
+        
+        data = other.data;
+        length = other.length;
+        owned = false;
+
+        return *this;
+    }
+
+    Span& operator=(Span&& other) {
+        if(&other == this) return *this;
+        this->~Span();
+
+        data = other.data;
+        length = other.length;
+        owned = other.owned;
+        
+        other.data = nullptr;
+        other.length = 0;
+        other.owned = false;
+        return *this;
+    }
+
+    T& operator[](size_t index) { return data[index]; }
 };
 
 inline char hexDigit(uint8_t nybble) {
@@ -97,4 +130,24 @@ inline void printOsslParams(OSSL_PARAM* param) {
         std::cout << "\n";
         param++;
     }
+}
+
+inline int32_t firstIndexOf(JwtString str, char c, size_t* index) {
+    for(auto i = 0 ; i < str.length ; i++) {
+        if(str.data[i] == c) {
+            *index = i;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+inline int32_t lastIndexOf(JwtString str, char c, size_t* index) {
+    for(auto i = str.length - 1; i >= 0 ; i--) {
+        if(str.data[i] == c) {
+            *index = i;
+            return 0;
+        }
+    }
+    return -1;
 }
