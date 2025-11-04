@@ -7,8 +7,8 @@ class TestRecipe(ConanFile):
     generators = "PkgConfigDeps", "CMakeDeps", "CMakeToolchain"
 
     def requirements(self):
-
         self.requires("openssl/3.5.2")
+        self.requires("argparse/3.2")
         self.requires("gtest/1.17.0")
         
     def build_requirements(self):

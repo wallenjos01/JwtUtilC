@@ -1,7 +1,7 @@
 /**
  * Josh Wallentine
  * Created 9/12/25
- * Modified 9/14/25
+ * Modified 11/4/25
  *
  * Implementation of include/jwt/stream.h
  */
@@ -43,11 +43,9 @@ int32_t readFile(void* impl, char* buffer, size_t charsToRead,
 
     FileInfo* info = static_cast<FileInfo*>(impl);
 
-    size_t startIndex = info->stream.gcount();
     info->stream.read(buffer, charsToRead);
-
     if (charsRead) {
-        *charsRead = info->stream.gcount() - startIndex;
+        *charsRead = info->stream.gcount();
     }
 
     return 0;

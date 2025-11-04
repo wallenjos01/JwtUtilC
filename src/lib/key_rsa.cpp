@@ -33,7 +33,7 @@ struct RsaFactors {
     size_t numPrimes;
 
     RsaFactors(size_t num)
-        : allocation(new BIGNUM*[num * 3]), names(new std::string[num * 3]),
+        : allocation(new BIGNUM*[num * 3]{}), names(new std::string[num * 3]{}),
           numPrimes(num) {
 
         for (auto i = 0; i < numPrimes; i++) {

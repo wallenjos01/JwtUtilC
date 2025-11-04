@@ -1,34 +1,101 @@
+#include <cstdint>
+#include <exception>
 #include <iostream>
 
-#include "jwt/json.h"
-#include "jwt/key.h"
-#include "jwt/token.h"
+#include <argparse/argparse.hpp>
+
+#include <jwt/json.h>
+#include <jwt/key.h>
+#include <jwt/token.h>
+
+#include "app.hpp"
+
 
 int main(int argc, char** argv) { 
 
-    const char* keyJson =
-        "{\"kty\":\"EC\","
-        "\"crv\":\"P-256\","
-        "\"x\":\"rrwq-1lwloY2pjJQE_oapmXKOEMkDSu59hU3ROE_1vo\","
-        "\"y\":\"I1MuspBp4orW2uIhF3WGcShGr2xT8R59argUv4UbwLE\","
-        "\"d\":\"KL78nYZ0H75mAjxj6Bu8rw6cB9aW7OehdvAXOM5TOUA\","  
-        "\"use\":\"sig\","
-        "\"kid\":\"1\"}";
+    argparse::ArgumentParser args("jwtutil", JWT_VERSION);
+    args.set_prefix_chars("-");
+    args.set_assign_chars("=");
 
-    JwtJsonElement element = {};
-    jwtReadJsonString(&element, keyJson, strlen(keyJson));
+    argparse::ArgumentParser createCommand("create", JWT_VERSION);
+    createCommand.add_argument("algorithm")
+        .help("The algorithm to use to protect the token")
+        .nargs(1)
+        .required();
+    createCommand.add_argument("-k", "--key")
+        .help("The path to a JSON file containing a Json Web Key (JWK)");
+    createCommand.add_argument("-p", "--payload")
+        .help("A JSON object containing claims for the token payload");
+    createCommand.add_argument("-h", "--header")
+        .help("A JSON object containing claims for the token header");
+    createCommand.add_argument("-i", "--issuer")
+        .help("The token issuer");
+    createCommand.add_argument("-a", "--audience")
+        .help("The token's audience");
+    createCommand.add_argument("-s", "--subject")
+        .help("The token's subject");
+    createCommand.add_argument("-j", "--id")
+        .help("The token's unique ID");
+    createCommand.add_argument("-x", "--expires-at")
+        .help("Milliseconds since the epoch when the token will expire")
+        .scan<'i', uint64_t>();
+    createCommand.add_argument("-e", "--expires")
+        .help("The time, in milliseconds, from the time of creation until the token expires")
+        .scan<'i', uint64_t>();
+    createCommand.add_argument("-n", "--not-before")
+        .help("Milliseconds since the epoch when the token will become valid")
+        .scan<'i', uint64_t>();
 
-    JwtKey key = {};
-    jwtKeyParse(&key, &element.object);
 
-    JwtJsonObject obj = {};
-    jwtJsonObjectCreate(&obj);
-    jwtJsonObjectSetInt(&obj, "test", 42);
+    argparse::ArgumentParser verifyCommand("verify", JWT_VERSION);
+    verifyCommand.add_argument("token")
+        .help("The token to verify")
+        .nargs(1);
+    verifyCommand.add_argument("-k", "--key")
+        .help("The path to a JSON file containing a Json Web Key (JWK)");
+    verifyCommand.add_argument("-p", "--payload")
+        .help("A JSON object containing claims which must be in the token payload");
+    verifyCommand.add_argument("-h", "--header")
+        .help("A JSON object containing claims which must be in the token header");
+    verifyCommand.add_argument("-i", "--issuer")
+        .help("The token's expected issuer");
+    verifyCommand.add_argument("-a", "--audience")
+        .help("The token's expected audience");
+    verifyCommand.add_argument("-s", "--subject")
+        .help("The token's expected subject");
+    verifyCommand.add_argument("-j", "--id")
+        .help("The token's expected unique ID");
+    verifyCommand.add_argument("--allow-unprotected")
+        .help("Allow successful verification of unprotected tokens")
+        .flag();
+    verifyCommand.add_argument("--allow-expired")
+        .help("Allow successful verification of expired tokens")
+        .flag();
+    verifyCommand.add_argument("--allow-early")
+        .help("Allow successful verification of early tokens")
+        .flag();
+    verifyCommand.add_argument("-o", "--output")
+        .help("Output format for verify operations. One of: 'json', 'payload', 'header'")
+        .choices("json", "payload", "header");
 
-    JwtString sig = {};
-    jwtCreateToken(&obj, &key, JWT_ALGORITHM_ES256, &sig);
+    args.add_subparser(createCommand);
+    args.add_subparser(verifyCommand);
 
-    std::cout << sig.data << std::endl;
+    try {
+        args.parse_args(argc, argv);
+    } catch(const std::exception& ex) {
+        std::cerr << args << "\n";
+        return 1;
+    }
+
+    if(args.is_subcommand_used("create")) {
+        return createToken(args.at<argparse::ArgumentParser>("create"));
+    } else if(args.is_subcommand_used("verify")) {
+        return verifyToken(args.at<argparse::ArgumentParser>("verify"));
+    } else {
+        std::cerr << args << "\n";
+        return 1;
+    }
 
     return 0; 
 }

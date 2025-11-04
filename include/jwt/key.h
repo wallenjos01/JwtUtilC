@@ -182,6 +182,14 @@ enum JwtKeyParseResult {
 };
 
 /**
+ * @brief Attempts to parse a JWA by name from the given string.
+ * @param algorithm The place to store the parsed algorithm.
+ * @param name The algorithm name to parse
+ * @return 0 on success, or some error code
+ */
+int32_t jwtAlgorithmParse(JwtAlgorithm* algorithm, const char* name);
+
+/**
  * @brief Attempts to parse a JWK from the given JSON object
  * @param key A pointer to the place to store the output key
  * @param obj The object to parse

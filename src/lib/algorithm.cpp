@@ -102,9 +102,9 @@ int32_t setupContextForAlgorithm(EVP_PKEY_CTX* keyContext,
 
 } // namespace
 
-int32_t jwt::parseAlgorithm(JwtAlgorithm* alg, JwtString str) {
+int32_t jwtAlgorithmParse(JwtAlgorithm* alg, const char* str) {
 
-  size_t hash = hashString(str.data, str.length);
+    size_t hash = hashString(str, strlen(str));
     switch (hash) {
     case hashCString("none"):
         *alg = JWT_ALGORITHM_NONE;

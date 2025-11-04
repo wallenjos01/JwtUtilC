@@ -267,7 +267,7 @@ int32_t jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, bool a
         goto cleanup;
     }
 
-    if(jwt::parseAlgorithm(&alg, algStr) != 0) {
+    if(jwtAlgorithmParse(&alg, algStr.data) != 0) {
         result = -4;
         goto cleanup;
     }

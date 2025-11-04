@@ -12,6 +12,7 @@
 #include <jwt/json.h>
 #include <jwt/stream.h>
 #include <string>
+#include <iostream>
 
 #define CHECK(expression)                                                      \
     {                                                                          \
@@ -24,8 +25,10 @@
     {                                                                          \
         int32_t nextResult = nextReal(reader, lastReadChar);                   \
         if (nextResult == -1) {                                                \
+            std::cout << "Failed to read " __FILE__ ":" << __LINE__ << "\n";   \
             return JWT_JSON_PARSE_RESULT_UNEXPECTED_EOF;                       \
         } else if (nextResult == 1) {                                          \
+            std::cout << "End of file " __FILE__ ":" << __LINE__ << "\n";      \
             return JWT_JSON_PARSE_RESULT_UNEXPECTED_EOF;                       \
         }                                                                      \
     }
@@ -35,8 +38,10 @@
         int32_t nextResult =                                                   \
             jwtReaderReadAll(reader, lastReadChar, 1, nullptr);                \
         if (nextResult == -1) {                                                \
+            std::cout << "Failed to read " __FILE__ ":" << __LINE__ << "\n";   \
             return JWT_JSON_PARSE_RESULT_UNEXPECTED_EOF;                       \
         } else if (nextResult == 1) {                                          \
+            std::cout << "End of file " __FILE__ ":" << __LINE__ << "\n";      \
             return JWT_JSON_PARSE_RESULT_UNEXPECTED_EOF;                       \
         }                                                                      \
     }

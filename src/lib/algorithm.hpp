@@ -11,8 +11,6 @@
 
 namespace jwt {
 
-int32_t parseAlgorithm(JwtAlgorithm* alg, JwtString str);
-
 const char* getAlgorithmName(JwtAlgorithm alg);
 
 int32_t generateHmac(Span<uint8_t> input, JwtKey* key, JwtAlgorithm algorithm,

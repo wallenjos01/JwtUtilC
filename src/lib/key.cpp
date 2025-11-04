@@ -119,7 +119,7 @@ JwtKeyParseResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj) {
 
     JwtString alg = jwtJsonObjectGetString(obj, "alg");
     key->algorithm = JWT_ALGORITHM_UNKNOWN;
-    if (alg.data && jwt::parseAlgorithm(&key->algorithm, alg) != 0) {
+    if (alg.data && jwtAlgorithmParse(&key->algorithm, alg.data) != 0) {
         return JWT_KEY_PARSE_RESULT_UNKNOWN_ALGORITHM;
     }
 
