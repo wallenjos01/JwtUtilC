@@ -1,16 +1,18 @@
 /**
  * Josh Wallentine
  * Created 9/14/25
- * Modified 9/30/25
+ * Modified 11/12/25
  *
  * Partial implementation of include/jwt/json.h
  * See also json_decoder.cpp and json.cpp
  */
 
-#include "jwt/core.h"
-#include "jwt/stream.h"
 #include "util.hpp"
+
+#include <jwt/core.h>
+#include <jwt/stream.h>
 #include <jwt/json.h>
+
 #include <string>
 
 namespace {
@@ -101,30 +103,8 @@ int32_t jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer) {
         JWT_CHECK(jwtWriterWrite(writer, "]", 1, nullptr));
         break;
     }
-    case JWT_JSON_ELEMENT_TYPE_OBJECT: {
-
-        JWT_CHECK(jwtWriterWrite(writer, "{", 1, nullptr));
-
-        JwtJsonObject obj = jwtJsonElementAsObject(*element);
-        JwtJsonObjectIterator it = jwtJsonObjectIteratorCreate(&obj);
-
-        size_t index = 0;
-        JwtJsonObjectEntry* entry = jwtJsonObjectIteratorNext(&it);
-        while (entry != nullptr) {
-            if (index > 0) {
-                JWT_CHECK(jwtWriterWrite(writer, ",", 1, nullptr));
-            }
-            JWT_CHECK(writeString(entry->key, writer));
-            JWT_CHECK(jwtWriterWrite(writer, ":", 1, nullptr));
-            JWT_CHECK(jwtWriteJsonWriter(&entry->element, writer));
-            index++;
-
-            entry = jwtJsonObjectIteratorNext(&it);
-        }
-
-        JWT_CHECK(jwtWriterWrite(writer, "}", 1, nullptr));
-        break;
-    }
+    case JWT_JSON_ELEMENT_TYPE_OBJECT: 
+        jwtWriteJsonObjectWriter(&element->object, writer);
     }
 
     return 0;
@@ -136,6 +116,44 @@ int32_t jwtWriteJsonString(JwtJsonElement* element, JwtString* string) {
     JwtWriter writer = {};
     JWT_CHECK(jwtWriterCreateDynamic(&writer));
     JWT_CHECK(jwtWriteJsonWriter(element, writer));
+
+    JwtList* list = jwtWriterExtractDynamic(&writer);
+    string->length = list->size;
+    string->data = static_cast<char*>(jwtListReclaim(list));
+ 
+    return 0;
+}
+
+
+int32_t jwtWriteJsonObjectWriter(JwtJsonObject* object, JwtWriter writer) {
+
+    JWT_CHECK(jwtWriterWrite(writer, "{", 1, nullptr));
+
+    JwtJsonObjectIterator it = jwtJsonObjectIteratorCreate(object);
+
+    size_t index = 0;
+    JwtJsonObjectEntry* entry = jwtJsonObjectIteratorNext(&it);
+    while (entry != nullptr) {
+        if (index > 0) {
+            JWT_CHECK(jwtWriterWrite(writer, ",", 1, nullptr));
+        }
+        JWT_CHECK(writeString(entry->key, writer));
+        JWT_CHECK(jwtWriterWrite(writer, ":", 1, nullptr));
+        JWT_CHECK(jwtWriteJsonWriter(&entry->element, writer));
+        index++;
+
+        entry = jwtJsonObjectIteratorNext(&it);
+    }
+
+    JWT_CHECK(jwtWriterWrite(writer, "}", 1, nullptr));
+    return 0;
+}
+
+int32_t jwtWriteJsonObjectString(JwtJsonObject* object, JwtString* string) {
+
+    JwtWriter writer = {};
+    JWT_CHECK(jwtWriterCreateDynamic(&writer));
+    JWT_CHECK(jwtWriteJsonObjectWriter(object, writer));
 
     JwtList* list = jwtWriterExtractDynamic(&writer);
     string->length = list->size;

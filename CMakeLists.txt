@@ -21,6 +21,7 @@ find_package(argparse REQUIRED)
 
 
 file(GLOB_RECURSE LibrarySources src/lib/**.cpp)
+file(GLOB_RECURSE LibraryHeaders include/**.h)
 file(GLOB_RECURSE UtilSources src/util/**.cpp)
 file(GLOB_RECURSE TestSources src/test/**.cpp)
 
@@ -29,7 +30,7 @@ add_compile_definitions(JWT_VERSION=\"${JWT_VERSION}\")
 add_library(JwtLib STATIC ${LibrarySources})
 target_include_directories(JwtLib PUBLIC ${JWT_INCLUDE_DIR})
 target_link_libraries(JwtLib openssl::openssl)
-
+target_precompile_headers(JwtLib PUBLIC ${LibraryHeaders})
 
 add_executable(JwtUtil ${UtilSources})
 target_include_directories(JwtUtil PUBLIC ${JWT_INCLUDE_DIR})
@@ -40,4 +41,5 @@ add_executable(JwtTest ${TestSources})
 target_include_directories(JwtTest PUBLIC ${JWT_INCLUDE_DIR})
 target_link_libraries(JwtTest PRIVATE JwtLib)
 target_link_libraries(JwtTest PRIVATE gtest::gtest)
+
 

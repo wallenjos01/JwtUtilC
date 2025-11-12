@@ -83,8 +83,14 @@ int main(int argc, char** argv) {
         .help("Output format for verify operations. One of: 'json', 'payload', 'header'")
         .choices("json", "payload", "header");
 
+    argparse::ArgumentParser headerCommand("header", JWT_VERSION);
+    headerCommand.add_argument("token")
+        .help("The token to verify")
+        .nargs(1);
+
     args.add_subparser(createCommand);
     args.add_subparser(verifyCommand);
+    args.add_subparser(headerCommand);
 
     try {
         args.parse_args(argc, argv);
@@ -97,6 +103,8 @@ int main(int argc, char** argv) {
         return createToken(args.at<argparse::ArgumentParser>("create"));
     } else if(args.is_subcommand_used("verify")) {
         return verifyToken(args.at<argparse::ArgumentParser>("verify"));
+    } else if(args.is_subcommand_used("header")) {
+        return parseHeader(args.at<argparse::ArgumentParser>("header"));
     } else {
         std::cerr << args << "\n";
         return 1;

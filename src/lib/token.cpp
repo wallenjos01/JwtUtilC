@@ -1,7 +1,7 @@
 /**
  * Josh Wallentine
  * Created 10/32/25
- * Modified 10/27/25
+ * Modified 11/11/25
  *
  * Implementation of token.h
  */
@@ -181,8 +181,6 @@ int32_t writeEncryptedToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKe
     return 0;
 }
 
-
-
 }
 
 
@@ -354,9 +352,6 @@ void jwtParsedTokenDestroy(JwtParsedToken *token) {
     token->algorithm = JWT_ALGORITHM_UNKNOWN;
 
 }
-
-    
-
 
 int32_t jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, JwtVerifyFlags flags) {
 

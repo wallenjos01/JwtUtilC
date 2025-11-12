@@ -5,10 +5,10 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-
 #include "core.h"
 #include "stream.h"
+
+#include <stdint.h>
 
 /**
  * Enumerates all valid types for JSON Elements
@@ -828,6 +828,23 @@ int32_t jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer);
  * @return 0 on success, -1 on error
  */
 int32_t jwtWriteJsonString(JwtJsonElement* element, JwtString* string);
+
+
+/**
+ * @brief Writes a JSON object into the given writer.
+ * @param element The object to write.
+ * @param writer The writer to write to.
+ * @return 0 on success, -1 on error
+ */
+int32_t jwtWriteJsonObjectWriter(JwtJsonObject* object, JwtWriter writer);
+
+/**
+ * @brief Writes a JSON object into the given string.
+ * @param element The object to write.
+ * @param writer The string to create.
+ * @return 0 on success, -1 on error
+ */
+int32_t jwtWriteJsonObjectString(JwtJsonObject* object, JwtString* string);
 
 #ifdef __cplusplus
 }

@@ -6,3 +6,4 @@ int createToken(argparse::ArgumentParser& args);
 
 int verifyToken(argparse::ArgumentParser& args);
 
+int parseHeader(argparse::ArgumentParser& args);

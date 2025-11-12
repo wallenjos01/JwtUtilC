@@ -1,7 +1,6 @@
 #include "app.hpp"
 #include "jwt/key.h"
 
-#include <functional>
 #include <jwt/json.h>
 #include <jwt/token.h>
 
@@ -80,14 +79,12 @@ int verifyToken(argparse::ArgumentParser &args) {
         std::cout << "Verification successful!\n";
         
         JwtString headerStr = {};
-        JwtJsonElement headerElement = { .type = JWT_JSON_ELEMENT_TYPE_OBJECT, .object = parsed.header };
-        jwtWriteJsonString(&headerElement, &headerStr);
+        jwtWriteJsonObjectString(&header, &headerStr);
 
         std::cout << "Header: " << headerStr.data << "\n";
 
         JwtString payloadStr = {};
-        JwtJsonElement payloadElement = { .type = JWT_JSON_ELEMENT_TYPE_OBJECT, .object = parsed.payload };
-        jwtWriteJsonString(&payloadElement, &payloadStr);
+        jwtWriteJsonObjectString(&parsed.payload, &payloadStr);
 
         std::cout << "Payload: " << payloadStr.data << "\n";
 
@@ -97,14 +94,12 @@ int verifyToken(argparse::ArgumentParser &args) {
         if(output == "json") {
 
             JwtString headerStr = {};
-            JwtJsonElement headerElement = { .type = JWT_JSON_ELEMENT_TYPE_OBJECT, .object = parsed.header };
-            jwtWriteJsonString(&headerElement, &headerStr);
+            jwtWriteJsonObjectString(&header, &headerStr);
 
             std::cout << "{\"header\":" << headerStr.data << ",";
 
             JwtString payloadStr = {};
-            JwtJsonElement payloadElement = { .type = JWT_JSON_ELEMENT_TYPE_OBJECT, .object = parsed.payload };
-            jwtWriteJsonString(&payloadElement, &payloadStr);
+            jwtWriteJsonObjectString(&parsed.payload, &payloadStr);
 
             std::cout << "\"payload\":" << payloadStr.data << "}\n";
 
@@ -112,16 +107,14 @@ int verifyToken(argparse::ArgumentParser &args) {
         } else if(output == "payload") {
 
             JwtString payloadStr = {};
-            JwtJsonElement payloadElement = { .type = JWT_JSON_ELEMENT_TYPE_OBJECT, .object = parsed.payload };
-            jwtWriteJsonString(&payloadElement, &payloadStr);
+            jwtWriteJsonObjectString(&parsed.payload, &payloadStr);
 
             std::cout << payloadStr.data << "\n";
         
         } else if(output == "header") {
 
             JwtString headerStr = {};
-            JwtJsonElement headerElement = { .type = JWT_JSON_ELEMENT_TYPE_OBJECT, .object = parsed.header };
-            jwtWriteJsonString(&headerElement, &headerStr);
+            jwtWriteJsonObjectString(&header, &headerStr);
 
             std::cout << headerStr.data << "\n";
         }

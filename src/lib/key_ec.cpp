@@ -99,8 +99,6 @@ JwtKeyParseResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
     Span<uint8_t> ys = {};
     Span<uint8_t> ds = {};
 
-    //BIGNUM* x;
-    //BIGNUM* y;
     BIGNUM* d;
 
     CHECK(jwt::b64url::decodeNew(xB64.data, xB64.length, &xs),
