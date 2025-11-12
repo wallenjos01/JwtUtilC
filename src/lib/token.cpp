@@ -118,25 +118,13 @@ JwtResult writeEncryptedToken(JwtJsonObject* header, JwtJsonObject* payload, Jwt
 
     // CEK
     size_t keyLength = jwt::enc::getKeyLength(crypt);
-    Span<uint8_t> cek;
-    if(algorithm == JWT_ALGORITHM_DIRECT) {
-        if(key->type != JWT_KEY_TYPE_OCTET_SEQUENCE) {
-            return JWT_RESULT_INVALID_KEY_TYPE;
-        }
-        cek = *static_cast<Span<uint8_t>*>(key->keyData);
-    } else {
-        cek = Span<uint8_t>(new uint8_t[keyLength], keyLength);
-        RAND_bytes(cek.data, cek.length);
-    
-        size_t keyLen = 0;
-        JWT_CHECK(jwt::enc::encryptCek(header, cek, key, algorithm, {}, &keyLen));
-
-        Span<uint8_t> encryptedKey = Span<uint8_t>(new uint8_t[keyLen], keyLen); 
-        JWT_CHECK(jwt::enc::encryptCek(header, cek, key, algorithm, encryptedKey, &keyLen));
-
-        JWT_CHECK(jwt::b64url::encode(encryptedKey.data, keyLen, out));
+    Span<uint8_t> cek = {};
+    Span<uint8_t> encryptedKey = {};
+    JWT_CHECK(jwt::enc::generateCek(header, key, algorithm, crypt, &cek, &encryptedKey));
+    if(encryptedKey.length > 0) {
+        JWT_CHECK(jwt::b64url::encode(encryptedKey.data, encryptedKey.length, out));
     }
-    jwtWriterWrite(out, ".", 1, nullptr);
+    JWT_CHECK(jwtWriterWrite(out, ".", 1, nullptr));
 
     // Initialization Vector
     size_t ivLength = jwt::enc::getIvLength(crypt);
@@ -405,6 +393,9 @@ JwtResult jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, JwtV
         if(out->algorithm == JWT_ALGORITHM_DIRECT) {
             if(key->type != JWT_KEY_TYPE_OCTET_SEQUENCE) {
                 return JWT_RESULT_INVALID_KEY_TYPE;
+            }
+            if(key->operations != 0 && (key->operations & JWT_KEY_OP_DECRYPT) == 0) {
+                return JWT_RESULT_INVALID_KEY_OPERATION;
             }
             keyData = *static_cast<Span<uint8_t>*>(key->keyData);
         } else {

@@ -173,6 +173,11 @@ typedef struct JwtKey {
      */
     JwtKeyOperations operations;
 
+    /**
+     * @brief True if the key contains private key parameters
+     */
+    bool isPrivateKey;
+
 } JwtKey;
 
 /**
@@ -209,6 +214,13 @@ JwtResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj);
  */
 void jwtKeyDestroy(JwtKey* key);
 
+/**
+ * Attempts to write the given JWK to the given JSON object
+ * @param key The key to write
+ * @param obj The object to write to
+ * @return 0 on success, or some error code
+ */
+JwtResult jwtKeyEncode(JwtKey* key, JwtJsonObject* obj);
 
 /**
  * Represents a set of zero or more JWKs

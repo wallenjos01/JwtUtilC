@@ -118,7 +118,7 @@ JwtResult jwtWriteJsonString(JwtJsonElement* element, JwtString* string) {
 
     JwtList* list = jwtWriterExtractDynamic(&writer);
     *static_cast<uint8_t*>(jwtListPush(list)) = 0;
-    string->length = list->size;
+    string->length = list->size - 1;
     string->data = static_cast<char*>(jwtListReclaim(list));
  
     return JWT_RESULT_SUCCESS;
@@ -157,7 +157,7 @@ JwtResult jwtWriteJsonObjectString(JwtJsonObject* object, JwtString* string) {
 
     JwtList* list = jwtWriterExtractDynamic(&writer);
     *static_cast<uint8_t*>(jwtListPush(list)) = 0;
-    string->length = list->size;
+    string->length = list->size - 1;
     string->data = static_cast<char*>(jwtListReclaim(list));
  
     return JWT_RESULT_SUCCESS;

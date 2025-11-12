@@ -180,6 +180,23 @@ size_t jwt::b64url::getDataLength(size_t encodedLength) {
     return (chunks * 3) + ((rem > 0) * (rem - 1));
 }
 
+JwtResult jwt::b64url::encodeString(const void *data, size_t dataLength, JwtString *string) {
+
+    size_t encodedLength = getEncodedLength(dataLength);
+
+    char* stringData = new char[encodedLength + 1];
+    string->data = stringData;
+    string->length = encodedLength;
+
+    JwtWriter writer = {};
+    JWT_CHECK(jwtWriterCreateForBuffer(&writer, stringData, encodedLength));
+
+    JwtResult result = encode(data, dataLength, writer);
+    jwtWriterClose(&writer);
+
+    return result;
+}
+
 JwtResult jwt::b64url::decodeNew(const void* encoded, size_t encodedLength, Span<uint8_t> *output) {
 
     size_t decodedLength = getDataLength(encodedLength);

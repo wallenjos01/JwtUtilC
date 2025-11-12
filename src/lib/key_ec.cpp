@@ -9,6 +9,7 @@
 
 #include "algorithm.hpp"
 #include "hash.hpp"
+#include "jwt/core.h"
 #include "key.hpp"
 #include "util.hpp"
 
@@ -149,8 +150,11 @@ JwtResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
         return JWT_RESULT_UNEXPECTED_ERROR;
     }
 
-    int selection =
-        dB64.data != nullptr ? EVP_PKEY_KEYPAIR : EVP_PKEY_PUBLIC_KEY;
+    int selection = EVP_PKEY_PUBLIC_KEY;
+    if(dB64.data != nullptr) {
+        selection = EVP_PKEY_KEYPAIR;
+        key->isPrivateKey = true;
+    }
 
     EVP_PKEY** pkey = reinterpret_cast<EVP_PKEY**>(&key->keyData);
     EVP_PKEY_fromdata_init(ctx);
@@ -163,4 +167,28 @@ JwtResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
     OSSL_PARAM_free(params);
     EVP_PKEY_CTX_free(ctx);
     return result;
+}
+
+JwtResult jwt::writeEcKey(JwtKey *key, JwtJsonObject *obj) {
+
+    JwtResult result = JWT_RESULT_SUCCESS;
+    EVP_PKEY* pkey = static_cast<EVP_PKEY*>(key->keyData);
+    int selection = key->isPrivateKey ? EVP_PKEY_KEYPAIR : EVP_PKEY_PUBLIC_KEY;
+
+    JwtString str = {};
+    EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, nullptr, 0, &str.length);
+    str.data = new char[str.length + 1];
+    EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, const_cast<char*>(str.data), str.length, nullptr);
+
+    jwtJsonObjectSetString(obj, "crv", str.data);
+    jwtStringDestroy(&str);
+
+    JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_EC_PUB_X, "x", JWT_RESULT_MISSING_REQUIRED_KEY_PARAM));
+    JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_EC_PUB_Y, "y", JWT_RESULT_MISSING_REQUIRED_KEY_PARAM));
+
+    if(key->isPrivateKey) {
+        JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_PRIV_KEY, "d", JWT_RESULT_MISSING_REQUIRED_KEY_PARAM));
+    }
+
+    return JWT_RESULT_SUCCESS;
 }

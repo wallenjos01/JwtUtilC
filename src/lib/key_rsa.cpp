@@ -7,16 +7,17 @@
  * See also key.cpp, key_ec.cpp
  */
 
-#include <cstdio>
 #include <jwt/key.h>
+#include <jwt/core.h>
+#include <jwt/result.h>
+#include <jwt/stream.h>
 
 #include "algorithm.hpp"
-#include "jwt/core.h"
-#include "jwt/result.h"
 #include "key.hpp"
 #include "util.hpp"
 
 #include <string>
+#include <cstdio>
 
 #include <openssl/bn.h>
 #include <openssl/core_names.h>
@@ -230,8 +231,11 @@ JwtResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject* obj) {
     BN_free(e);
     BN_free(d);
 
-    int selection =
-        dB64.data != nullptr ? EVP_PKEY_KEYPAIR : EVP_PKEY_PUBLIC_KEY;
+    int selection = EVP_PKEY_PUBLIC_KEY;
+    if(dB64.data != nullptr) {
+        selection = EVP_PKEY_KEYPAIR;
+        key->isPrivateKey = true;
+    }
 
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_name(nullptr, "RSA", nullptr);
     if (ctx == nullptr) {
@@ -251,4 +255,26 @@ JwtResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject* obj) {
     EVP_PKEY_CTX_free(ctx);
 
     return result;
+}
+
+JwtResult jwt::writeRsaKey(JwtKey *key, JwtJsonObject *obj) {
+
+    JwtResult result = JWT_RESULT_SUCCESS;
+    EVP_PKEY* pkey = static_cast<EVP_PKEY*>(key->keyData);
+    int selection = key->isPrivateKey ? EVP_PKEY_KEYPAIR : EVP_PKEY_PUBLIC_KEY;
+
+    JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_RSA_N, "n", JWT_RESULT_MISSING_REQUIRED_KEY_PARAM));
+    JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_RSA_E, "e", JWT_RESULT_MISSING_REQUIRED_KEY_PARAM));
+
+    if(key->isPrivateKey) {
+        JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_RSA_D, "d", JWT_RESULT_MISSING_REQUIRED_KEY_PARAM));
+
+        JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_RSA_FACTOR1, "p", JWT_RESULT_SUCCESS));
+        JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_RSA_FACTOR2, "q", JWT_RESULT_SUCCESS));
+        JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_RSA_EXPONENT1, "dp", JWT_RESULT_SUCCESS));
+        JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_RSA_EXPONENT2, "dq", JWT_RESULT_SUCCESS));
+        JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_RSA_COEFFICIENT2, "qi", JWT_RESULT_SUCCESS));
+    }
+
+    return JWT_RESULT_SUCCESS;
 }

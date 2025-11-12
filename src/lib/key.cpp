@@ -17,7 +17,9 @@
 #include "algorithm.hpp"
 #include "hash.hpp"
 #include "key.hpp"
+#include "jwt/core.h"
 #include "jwt/result.h"
+#include "jwt/stream.h"
 #include "util.hpp"
 
 namespace {
@@ -40,6 +42,19 @@ JwtResult parseKeyType(JwtKeyType* type, JwtString str) {
     }
 }
 
+const char* getKeyTypeName(JwtKeyType type) {
+    switch(type) {
+        case JWT_KEY_TYPE_RSA:
+            return "EC";
+        case JWT_KEY_TYPE_ELLIPTIC_CURVE:
+            return "RSA";
+        case JWT_KEY_TYPE_OCTET_SEQUENCE:
+            return "oct";
+        default: 
+            return "";
+    }
+}
+
 JwtResult parseKeyUse(JwtKeyUse* use, JwtString str) {
     size_t hash = hashString(str.data, str.length);
     switch (hash) {
@@ -51,6 +66,17 @@ JwtResult parseKeyUse(JwtKeyUse* use, JwtString str) {
         return JWT_RESULT_SUCCESS;
     default:
         return JWT_RESULT_UNKNOWN_KEY_USE;
+    }
+}
+
+const char* getKeyUseName(JwtKeyUse type) {
+    switch(type) {
+        case JWT_KEY_USE_SIGNING:
+            return "sig";
+        case JWT_KEY_USE_ENCRYPTION:
+            return "enc";
+        default:
+            return "";
     }
 }
 
@@ -97,6 +123,29 @@ JwtResult parseKeyOps(uint8_t* bitset, JwtJsonArray array) {
     return JWT_RESULT_SUCCESS;
 }
 
+constexpr const char* getKeyOpName(JwtKeyOperation op) {
+    switch(op) {
+        case JWT_KEY_OP_SIGN:
+            return "sign";
+        case JWT_KEY_OP_VERIFY:
+            return "verify";
+        case JWT_KEY_OP_ENCRYPT:
+            return "encrypt";
+        case JWT_KEY_OP_DECRYPT:
+            return "decrypt";
+        case JWT_KEY_OP_WRAP_KEY:
+            return "wrapKey";
+        case JWT_KEY_OP_UNWRAP_KEY:
+            return "unwrapKey";
+        case JWT_KEY_OP_DERIVE_KEY:
+            return "deriveKey";
+        case JWT_KEY_OP_DERIVE_BITS:
+            return "deriveBits";
+        default:
+            return "";
+    }
+}
+
 } // namespace
 
 JwtResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj) {
@@ -124,6 +173,11 @@ JwtResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj) {
         JWT_CHECK(jwtAlgorithmParse(&key->algorithm, alg.data));
     }
 
+    JwtString kid = jwtJsonObjectGetString(obj, "kid");
+    if(kid.data) {
+        key->keyId = jwtStringCreateSized(kid.data, kid.length);
+    }
+
     switch (key->type) {
     case JWT_KEY_TYPE_ELLIPTIC_CURVE:
         return jwt::parseEcKey(key, obj);
@@ -138,6 +192,10 @@ JwtResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj) {
 
 void jwtKeyDestroy(JwtKey* key) {
 
+    if(key->keyId.data != nullptr) {
+        jwtStringDestroy(&key->keyId);
+    }
+
     switch (key->type) {
     case JWT_KEY_TYPE_ELLIPTIC_CURVE:
     case JWT_KEY_TYPE_RSA:
@@ -149,21 +207,52 @@ void jwtKeyDestroy(JwtKey* key) {
     }
 }
 
-JwtResult jwt::parseOctKey(JwtKey* key, JwtJsonObject* obj) {
+JwtResult jwtKeyEncode(JwtKey* key, JwtJsonObject* obj) {
 
-    JwtString kB64 = jwtJsonObjectGetString(obj, "k"); // Key data
-    if (kB64.data == nullptr) {
-        return JWT_RESULT_MISSING_REQUIRED_KEY_PARAM;
+    jwtJsonObjectSetString(obj, "kty", getKeyTypeName(key->type));
+    if(key->algorithm != JWT_ALGORITHM_UNKNOWN) {
+        jwtJsonObjectSetString(obj, "alg", jwt::getAlgorithmName(key->algorithm));
+    }
+    if(key->keyId.data != nullptr) {
+        jwtJsonObjectSetString(obj, "kid", key->keyId.data);
+    }
+    if(key->use != JWT_KEY_USE_UNKNOWN) {
+        jwtJsonObjectSetString(obj, "use", getKeyUseName(key->use)); 
+    }
+    if(key->operations != 0) {
+        JwtJsonArray keyOps = {};
+        jwtJsonArrayCreate(&keyOps);
+
+        JwtKeyOperation ops[8] = {
+            JWT_KEY_OP_SIGN,
+            JWT_KEY_OP_VERIFY,
+            JWT_KEY_OP_ENCRYPT,
+            JWT_KEY_OP_DECRYPT,
+            JWT_KEY_OP_WRAP_KEY,
+            JWT_KEY_OP_UNWRAP_KEY,
+            JWT_KEY_OP_DERIVE_KEY,
+            JWT_KEY_OP_DERIVE_BITS
+        };
+        for(auto i = 0 ; i < 8 ; i++) {
+            if(key->operations & ops[i]) {
+                jwtJsonArrayPushString(&keyOps, getKeyOpName(ops[i]));
+            }
+        }
+        jwtJsonObjectSetArray(obj, "key_ops", keyOps); 
     }
 
-    Span<uint8_t>* k = new Span<uint8_t>();
-    key->keyData = k;
-    JWT_CHECK(jwt::b64url::decodeNew(kB64.data, kB64.length, k));
+    switch(key->type) {
+        case JWT_KEY_TYPE_RSA:
+            return jwt::writeRsaKey(key, obj);
+        case JWT_KEY_TYPE_ELLIPTIC_CURVE:
+            return jwt::writeEcKey(key, obj);
+        case JWT_KEY_TYPE_OCTET_SEQUENCE:
+            return jwt::writeOctKey(key, obj);
+        default:
+            return JWT_RESULT_INVALID_KEY_TYPE;
+    }
 
-    return JWT_RESULT_SUCCESS;
 }
-
-
 
 JwtResult jwtKeySetParse(JwtKeySet* keySet, JwtJsonObject* obj) {
 
@@ -220,3 +309,39 @@ void jwtKeySetDestroy(JwtKeySet* keySet) {
     }
     keySet->count = 0;
 }
+
+
+JwtResult jwt::parseOctKey(JwtKey* key, JwtJsonObject* obj) {
+
+    JwtString kB64 = jwtJsonObjectGetString(obj, "k"); // Key data
+    if (kB64.data == nullptr) {
+        return JWT_RESULT_MISSING_REQUIRED_KEY_PARAM;
+    }
+
+    Span<uint8_t>* k = new Span<uint8_t>();
+    key->keyData = k;
+    JWT_CHECK(jwt::b64url::decodeNew(kB64.data, kB64.length, k));
+
+    return JWT_RESULT_SUCCESS;
+}
+
+JwtResult jwt::writeOctKey(JwtKey* key, JwtJsonObject* obj) {
+
+    Span<uint8_t> keyBytes = *static_cast<Span<uint8_t>*>(key->keyData);
+
+    JwtWriter b64Writer;
+    JWT_CHECK(jwtWriterCreateDynamic(&b64Writer));
+    JWT_CHECK(jwt::b64url::encode(keyBytes.data, keyBytes.length, b64Writer));
+
+    JwtString b64;
+    JwtList* list = jwtWriterExtractDynamic(&b64Writer);
+    *static_cast<uint8_t*>(jwtListPush(list)) = 0;
+
+    b64.length = list->size - 1;
+    b64.data = static_cast<char*>(jwtListReclaim(list));
+
+    jwtJsonObjectSetString(obj, "k", b64.data);
+    return JWT_RESULT_SUCCESS;
+
+}
+

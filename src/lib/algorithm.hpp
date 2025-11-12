@@ -45,8 +45,9 @@ const char* getCryptAlgorithmName(JwtCryptAlgorithm alg);
 size_t getIvLength(JwtCryptAlgorithm algorithm);
 size_t getKeyLength(JwtCryptAlgorithm algorithm);
 
-JwtResult encryptCek(JwtJsonObject* header, Span<uint8_t> cek, JwtKey* key, 
-                     JwtAlgorithm algorithm, Span<uint8_t> output, size_t* outputLength);
+JwtResult generateCek(JwtJsonObject* header, JwtKey* key, JwtAlgorithm algorithm, 
+                      JwtCryptAlgorithm crypt, Span<uint8_t>* cek, Span<uint8_t>* encryptedKey);
+
 JwtResult decryptCek(JwtJsonObject* header, Span<uint8_t> encryptedKey, JwtKey* key, 
                      JwtAlgorithm algorithm, Span<uint8_t> output, size_t* outputLength);
 
@@ -68,6 +69,8 @@ JwtResult decode(const void* encoded, size_t encodedLength, JwtWriter writer);
 size_t getEncodedLength(size_t dataLength);
 
 size_t getDataLength(size_t encodedLength);
+
+JwtResult encodeString(const void* data, size_t dataLength, JwtString* string);
 
 JwtResult decodeNew(const void* encoded, size_t encodedLength, Span<uint8_t>* output);
 
