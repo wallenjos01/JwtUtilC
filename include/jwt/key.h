@@ -45,12 +45,20 @@ enum JwtAlgorithm : uint8_t {
     JWT_ALGORITHM_PBES_HS256_A128KW,
     JWT_ALGORITHM_PBES_HS384_A192KW,
     JWT_ALGORITHM_PBES_HS512_A256KW,
-    JWT_ALGORITHM_A128CBC_HS256,
-    JWT_ALGORITHM_A192CBC_HS384,
-    JWT_ALGORITHM_A256CBC_HS512,
-    JWT_ALGORITHM_A128GCM,
-    JWT_ALGORITHM_A192GCM,
-    JWT_ALGORITHM_A256GCM,
+};
+
+/**
+ * Enumerates the valid algorithms for encrypting and signing the payload of an encrypted JWT.
+ * @see RFC 7518 (https://www.rfc-editor.org/rfc/rfc7518#section-5)
+ */
+enum JwtCryptAlgorithm {
+    JWT_CRYPT_ALGORITHM_UNKNOWN,
+    JWT_CRYPT_ALGORITHM_A128CBC_HS256,
+    JWT_CRYPT_ALGORITHM_A192CBC_HS384,
+    JWT_CRYPT_ALGORITHM_A256CBC_HS512,
+    JWT_CRYPT_ALGORITHM_A128GCM,
+    JWT_CRYPT_ALGORITHM_A192GCM,
+    JWT_CRYPT_ALGORITHM_A256GCM
 };
 
 /**
@@ -188,6 +196,18 @@ enum JwtKeyParseResult {
  * @return 0 on success, or some error code
  */
 int32_t jwtAlgorithmParse(JwtAlgorithm* algorithm, const char* name);
+
+/**
+ * @brief Attempts to parse an encryption algorithm by name from the given string.
+ * @param algorithm The place to store the parsed algorithm.
+ * @param name The algorithm name to parse
+ * @return 0 on success, or some error code
+ */
+int32_t jwtCryptAlgorithmParse(JwtCryptAlgorithm* algorithm, const char* name);
+
+inline bool jwtIsEncryptionAlgorithm(JwtAlgorithm algorithm) {
+    return algorithm >= JWT_ALGORITHM_RSA1_5;
+}
 
 /**
  * @brief Attempts to parse a JWK from the given JSON object

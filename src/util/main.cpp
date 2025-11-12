@@ -24,6 +24,8 @@ int main(int argc, char** argv) {
         .required();
     createCommand.add_argument("-k", "--key")
         .help("The path to a JSON file containing a Json Web Key (JWK)");
+    createCommand.add_argument("-e", "--enc")
+        .help("The encryption algorithm to use for encrypted tokens.");
     createCommand.add_argument("-p", "--payload")
         .help("A JSON object containing claims for the token payload");
     createCommand.add_argument("-h", "--header")
@@ -36,14 +38,17 @@ int main(int argc, char** argv) {
         .help("The token's subject");
     createCommand.add_argument("-j", "--id")
         .help("The token's unique ID");
-    createCommand.add_argument("-x", "--expires-at")
-        .help("Milliseconds since the epoch when the token will expire")
+    createCommand.add_argument("-x", "--expires-in")
+        .help("The time, in seconds, from the time of creation until the token expires")
         .scan<'i', uint64_t>();
-    createCommand.add_argument("-e", "--expires")
-        .help("The time, in milliseconds, from the time of creation until the token expires")
+    createCommand.add_argument("-X", "--expires-at")
+        .help("Seconds since the epoch when the token will expire")
         .scan<'i', uint64_t>();
-    createCommand.add_argument("-n", "--not-before")
-        .help("Milliseconds since the epoch when the token will become valid")
+    createCommand.add_argument("-n", "--valid-in")
+        .help("The time, in seconds, from the time of creation until the token will become valid")
+        .scan<'i', uint64_t>();
+    createCommand.add_argument("-N", "--not-before")
+        .help("Seconds since the epoch when the token will become valid")
         .scan<'i', uint64_t>();
 
 

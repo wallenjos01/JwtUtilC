@@ -9,20 +9,14 @@
 
 #include "jwt/core.h"
 #include "jwt/stream.h"
+#include "util.hpp"
 #include <jwt/json.h>
 #include <string>
-
-#define CHECK(expression)                                                      \
-    {                                                                          \
-        int32_t result = expression;                                           \
-        if (result < 0)                                                        \
-            return result;                                                     \
-    }
 
 namespace {
 
 int32_t writeString(JwtString string, JwtWriter writer) {
-    CHECK(jwtWriterWrite(writer, "\"", 1, nullptr));
+    JWT_CHECK(jwtWriterWrite(writer, "\"", 1, nullptr));
 
     for (auto i = 0; i < string.length; i++) {
         char c = string.data[i];
@@ -30,32 +24,32 @@ int32_t writeString(JwtString string, JwtWriter writer) {
         case '"':
         case '\\':
         case '/':
-            CHECK(jwtWriterWrite(writer, "\\", 1, nullptr));
-            CHECK(jwtWriterWrite(writer, &c, 1, nullptr));
+            JWT_CHECK(jwtWriterWrite(writer, "\\", 1, nullptr));
+            JWT_CHECK(jwtWriterWrite(writer, &c, 1, nullptr));
             break;
         case '\b':
-            CHECK(jwtWriterWrite(writer, "\\b", 2, nullptr));
+            JWT_CHECK(jwtWriterWrite(writer, "\\b", 2, nullptr));
             break;
         case '\f':
-            CHECK(jwtWriterWrite(writer, "\\f", 2, nullptr));
+            JWT_CHECK(jwtWriterWrite(writer, "\\f", 2, nullptr));
             break;
         case '\n':
-            CHECK(jwtWriterWrite(writer, "\\n", 2, nullptr));
+            JWT_CHECK(jwtWriterWrite(writer, "NumericDate\\n", 2, nullptr));
             break;
         case '\r':
-            CHECK(jwtWriterWrite(writer, "\\r", 2, nullptr));
+            JWT_CHECK(jwtWriterWrite(writer, "\\r", 2, nullptr));
             break;
         case '\t':
-            CHECK(jwtWriterWrite(writer, "\\t", 2, nullptr));
+            JWT_CHECK(jwtWriterWrite(writer, "\\t", 2, nullptr));
             break;
         default:
             if (c < 0x20)
                 continue;
-            CHECK(jwtWriterWrite(writer, &c, 1, nullptr));
+            JWT_CHECK(jwtWriterWrite(writer, &c, 1, nullptr));
         }
     }
 
-    CHECK(jwtWriterWrite(writer, "\"", 1, nullptr));
+    JWT_CHECK(jwtWriterWrite(writer, "\"", 1, nullptr));
     return 0;
 }
 
@@ -93,23 +87,23 @@ int32_t jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer) {
     }
     case JWT_JSON_ELEMENT_TYPE_ARRAY: {
 
-        CHECK(jwtWriterWrite(writer, "[", 1, nullptr));
+        JWT_CHECK(jwtWriterWrite(writer, "[", 1, nullptr));
 
         JwtJsonArray arr = jwtJsonElementAsArray(*element);
         for (auto i = 0; i < arr.size; i++) {
             if (i > 0) {
-                CHECK(jwtWriterWrite(writer, ",", 1, nullptr));
+                JWT_CHECK(jwtWriterWrite(writer, ",", 1, nullptr));
             }
             JwtJsonElement element = jwtJsonArrayGet(&arr, i);
-            CHECK(jwtWriteJsonWriter(&element, writer));
+            JWT_CHECK(jwtWriteJsonWriter(&element, writer));
         }
 
-        CHECK(jwtWriterWrite(writer, "]", 1, nullptr));
+        JWT_CHECK(jwtWriterWrite(writer, "]", 1, nullptr));
         break;
     }
     case JWT_JSON_ELEMENT_TYPE_OBJECT: {
 
-        CHECK(jwtWriterWrite(writer, "{", 1, nullptr));
+        JWT_CHECK(jwtWriterWrite(writer, "{", 1, nullptr));
 
         JwtJsonObject obj = jwtJsonElementAsObject(*element);
         JwtJsonObjectIterator it = jwtJsonObjectIteratorCreate(&obj);
@@ -118,20 +112,34 @@ int32_t jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer) {
         JwtJsonObjectEntry* entry = jwtJsonObjectIteratorNext(&it);
         while (entry != nullptr) {
             if (index > 0) {
-                CHECK(jwtWriterWrite(writer, ",", 1, nullptr));
+                JWT_CHECK(jwtWriterWrite(writer, ",", 1, nullptr));
             }
-            CHECK(writeString(entry->key, writer));
-            CHECK(jwtWriterWrite(writer, ":", 1, nullptr));
-            CHECK(jwtWriteJsonWriter(&entry->element, writer));
+            JWT_CHECK(writeString(entry->key, writer));
+            JWT_CHECK(jwtWriterWrite(writer, ":", 1, nullptr));
+            JWT_CHECK(jwtWriteJsonWriter(&entry->element, writer));
             index++;
 
             entry = jwtJsonObjectIteratorNext(&it);
         }
 
-        CHECK(jwtWriterWrite(writer, "}", 1, nullptr));
+        JWT_CHECK(jwtWriterWrite(writer, "}", 1, nullptr));
         break;
     }
     }
 
+    return 0;
+}
+
+
+int32_t jwtWriteJsonString(JwtJsonElement* element, JwtString* string) {
+
+    JwtWriter writer = {};
+    JWT_CHECK(jwtWriterCreateDynamic(&writer));
+    JWT_CHECK(jwtWriteJsonWriter(element, writer));
+
+    JwtList* list = jwtWriterExtractDynamic(&writer);
+    string->length = list->size;
+    string->data = static_cast<char*>(jwtListReclaim(list));
+ 
     return 0;
 }

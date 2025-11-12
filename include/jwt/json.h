@@ -821,6 +821,14 @@ JwtJsonParseResult jwtReadJsonString(JwtJsonElement* outElement,
  */
 int32_t jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer);
 
+/**
+ * @brief Writes a JSON element into the given string.
+ * @param element The element to write.
+ * @param writer The string to create.
+ * @return 0 on success, -1 on error
+ */
+int32_t jwtWriteJsonString(JwtJsonElement* element, JwtString* string);
+
 #ifdef __cplusplus
 }
 #endif

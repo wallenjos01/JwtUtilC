@@ -10,11 +10,14 @@
 #include "algorithm.hpp"
 #include "util.hpp"
 
+#include <chrono>
 #include <jwt/key.h>
 #include <jwt/json.h>
 #include <jwt/token.h>
 #include <jwt/core.h>
 #include <jwt/stream.h>
+
+#include <openssl/rand.h>
 
 namespace {
 
@@ -66,10 +69,10 @@ int32_t writeHmacToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey* ke
     toSignData.owned = false;
 
     size_t length;
-    JWT_CHECK(jwt::generateHmac(toSignData, key, algorithm, {}, &length));
+    JWT_CHECK(jwt::hmac::generate(toSignData, key, algorithm, {}, &length));
 
     Span<uint8_t> span(new uint8_t[length], length);
-    JWT_CHECK(jwt::generateHmac(toSignData, key, algorithm, span, &length));
+    JWT_CHECK(jwt::hmac::generate(toSignData, key, algorithm, span, &length));
 
     jwtWriterWrite(out, ".", 1, nullptr);
     jwt::b64url::encode(span.data, span.length, out);
@@ -92,10 +95,10 @@ int32_t writeSignedToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey* 
     toSignData.owned = false;
 
     size_t length;
-    JWT_CHECK(jwt::generateSignature(toSignData, key, algorithm, {}, &length));
+    JWT_CHECK(jwt::sig::generate(toSignData, key, algorithm, {}, &length));
 
     Span<uint8_t> span(new uint8_t[length], length);
-    JWT_CHECK(jwt::generateSignature(toSignData, key, algorithm, span, &length));
+    JWT_CHECK(jwt::sig::generate(toSignData, key, algorithm, span, &length));
 
     jwtWriterWrite(out, ".", 1, nullptr);
     jwt::b64url::encode(span.data, length, out);
@@ -103,10 +106,81 @@ int32_t writeSignedToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey* 
     return 0;
 }
 
-int32_t writeEncryptedToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtWriter out) {
 
-    return -1;
+
+int32_t writeEncryptedToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtCryptAlgorithm crypt, JwtWriter out) {
+
+    // Header
+    JWT_CHECK(writeJsonObjectB64(header, out));
+    jwtWriterWrite(out, ".", 1, nullptr);
+
+
+    // CEK
+    size_t keyLength = jwt::enc::getKeyLength(crypt);
+    Span<uint8_t> cek;
+    if(algorithm == JWT_ALGORITHM_DIRECT) {
+        if(key->type != JWT_KEY_TYPE_OCTET_SEQUENCE) {
+            return -1;
+        }
+        cek = *static_cast<Span<uint8_t>*>(key->keyData);
+    } else {
+        cek = Span<uint8_t>(new uint8_t[keyLength], keyLength);
+        RAND_bytes(cek.data, cek.length);
+        // TODO: encrypt the CEK with the key
+    }
+    jwtWriterWrite(out, ".", 1, nullptr);
+
+    // Initialization Vector
+    size_t ivLength = jwt::enc::getIvLength(crypt);
+    Span<uint8_t> iv = Span<uint8_t>(new uint8_t[ivLength], ivLength);
+    RAND_bytes(iv.data, iv.length);
+
+    JWT_CHECK(jwt::b64url::encode(iv.data, iv.length, out));
+    jwtWriterWrite(out, ".", 1, nullptr);
+
+    // Ciphertext and authentication tag
+    JwtWriter aadWriter = {};
+    jwtWriterCreateDynamic(&aadWriter);
+    if(writeJsonObjectB64(header, aadWriter) != 0) {
+        jwtWriterClose(&aadWriter);
+        return -1;
+    }
+
+    JwtList* aad = jwtWriterExtractDynamic(&aadWriter);
+    size_t aadLen = aad->size;
+    Span<uint8_t> aadData = Span<uint8_t>(static_cast<uint8_t*>(jwtListReclaim(aad)), aadLen);
+    jwtWriterClose(&aadWriter);
+
+    JwtWriter payloadWriter = {};
+    jwtWriterCreateDynamic(&payloadWriter);
+    JwtJsonElement payloadElement = {
+        .type = JWT_JSON_ELEMENT_TYPE_OBJECT,
+        .object = *payload
+    };
+    if(jwtWriteJsonWriter(&payloadElement, payloadWriter) != 0) {
+        jwtWriterClose(&payloadWriter);
+        return -2;
+    }
+    JwtList* payloadJson = jwtWriterExtractDynamic(&payloadWriter);
+    size_t payloadLen = payloadJson->size;
+    Span<uint8_t> payloadData = Span<uint8_t>(static_cast<uint8_t*>(jwtListReclaim(payloadJson)), payloadLen);
+    jwtWriterClose(&payloadWriter);
+
+    size_t outputLength = 0;
+    JWT_CHECK(jwt::enc::encryptAndProtect(payloadData, aadData, iv, cek, crypt, {}, &outputLength, nullptr));
+
+    size_t contentLength = 0;
+    Span<uint8_t> cipherText = Span<uint8_t>(new uint8_t[outputLength], outputLength);
+    JWT_CHECK(jwt::enc::encryptAndProtect(payloadData, aadData, iv, cek, crypt, cipherText, &outputLength, &contentLength));
+    
+    JWT_CHECK(jwt::b64url::encode(cipherText.data, contentLength, out));
+    jwtWriterWrite(out, ".", 1, nullptr);
+
+    JWT_CHECK(jwt::b64url::encode(cipherText.data + contentLength, outputLength - contentLength, out));
+
+    return 0;
 }
+
 
 
 }
@@ -157,7 +231,7 @@ cleanup:
     return result;
 }
 
-int32_t jwtCreateToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtString* out) {
+int32_t jwtCreateSignedToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtString* out) {
 
     if(key->algorithm != JWT_ALGORITHM_UNKNOWN && key->algorithm != algorithm) {
         return -101;
@@ -178,10 +252,6 @@ int32_t jwtCreateToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorit
             goto cleanup;
     } else if(isSigningAlgorithm(algorithm)) {
         result = writeSignedToken(&header, payload, key, algorithm, writer);
-        if(result != 0)
-            goto cleanup;
-    } else if(isEncryptionAlgorithm(algorithm)) {
-        result = writeEncryptedToken(&header, payload, key, algorithm, writer);
         if(result != 0)
             goto cleanup;
     } else {
@@ -209,6 +279,43 @@ cleanup:
 
 }
 
+int32_t jwtCreateEncryptedToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtCryptAlgorithm crypt, JwtString* out) {
+
+    if(key->algorithm != JWT_ALGORITHM_UNKNOWN && key->algorithm != algorithm) {
+        return -101;
+    }
+    if(!isEncryptionAlgorithm(algorithm)) {
+        return -102;
+    }
+
+
+    JwtJsonObject header;
+    jwtJsonObjectCreate(&header);
+    jwtJsonObjectSetString(&header, "alg", jwt::getAlgorithmName(algorithm));
+    jwtJsonObjectSetString(&header, "enc", jwt::enc::getCryptAlgorithmName(crypt));
+    jwtJsonObjectSetString(&header, "typ", "jwt");
+
+    JwtWriter writer;
+    jwtWriterCreateDynamic(&writer);
+
+    int32_t result = writeEncryptedToken(&header, payload, key, algorithm, crypt, writer);
+
+    if(result == 0) {
+        jwtWriterWrite(writer, "\0", 1, nullptr);
+        JwtList* tokenData = jwtWriterExtractDynamic(&writer);
+        size_t length = tokenData->size;
+        void* buffer = jwtListReclaim(tokenData);
+
+        *out = {
+            .length = length - 1,
+            .data = static_cast<char*>(buffer)
+        };
+    }
+
+    jwtWriterClose(&writer);
+    return result;
+}
+
 
 int32_t jwtReadTokenHeader(JwtString token, JwtJsonObject* out) {
 
@@ -219,6 +326,7 @@ int32_t jwtReadTokenHeader(JwtString token, JwtJsonObject* out) {
 
     Span<uint8_t> json = {};
     if(jwt::b64url::decodeNew(token.data, firstDot, &json) != 0) {
+
         return -2;
     }
 
@@ -239,80 +347,211 @@ int32_t jwtReadTokenHeader(JwtString token, JwtJsonObject* out) {
 }
 
 
-int32_t jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, bool allowUnprotected) {
+void jwtParsedTokenDestroy(JwtParsedToken *token) {
+
+    jwtJsonObjectDestroy(&token->header);
+    jwtJsonObjectDestroy(&token->payload);
+    token->algorithm = JWT_ALGORITHM_UNKNOWN;
+
+}
+
+    
+
+
+int32_t jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, JwtVerifyFlags flags) {
 
     size_t firstDot;
     size_t lastDot;
     if(firstIndexOf(token, '.', &firstDot) != 0 || lastIndexOf(token, '.', &lastDot) != 0 && firstDot == lastDot) {
-        return -1;
+        return -21;
     }
 
-    JwtJsonObject header;
-    if(jwtReadTokenHeader(token, &header) != 0) {
-        return -2;
+    if(jwtReadTokenHeader(token, &out->header) != 0) {
+        return -22;
     }
 
-    int32_t result = 0;
-
-    JwtString keyId = jwtJsonObjectGetString(&header, "kid");
-    JwtString algStr = jwtJsonObjectGetString(&header, "alg");
-    JwtAlgorithm alg;
+    JwtString keyId = jwtJsonObjectGetString(&out->header, "kid");
+    JwtString algStr = jwtJsonObjectGetString(&out->header, "alg");
 
     if(keyId.data != nullptr 
         && (key->keyId.data == nullptr 
             || key->keyId.length != keyId.length 
             || memcmp(key->keyId.data, keyId.data, keyId.length) != 0)) {
 
-        result = -3;
-        goto cleanup;
+        return -23;
     }
 
-    if(jwtAlgorithmParse(&alg, algStr.data) != 0) {
-        result = -4;
-        goto cleanup;
+    if(jwtAlgorithmParse(&out->algorithm, algStr.data) != 0) {
+        return -24;
     }
 
-    if(alg == JWT_ALGORITHM_NONE) {
-        result = allowUnprotected ? 0 : -6;
-        goto cleanup;
+    bool allowUnprotected = flags & JWT_VERIFY_FLAG_ALLOW_UNPROTECTED;
+    if(out->algorithm == JWT_ALGORITHM_NONE) {
+        if(!allowUnprotected) {
+            return -6;
+        }
+    } else if(key == nullptr || (key->algorithm != JWT_ALGORITHM_UNKNOWN && key->algorithm != out->algorithm)) {
+        return -25;
     }
 
-    if(key == nullptr || (key->algorithm != JWT_ALGORITHM_UNKNOWN && key->algorithm != alg)) {
-        result = -5;
-        goto cleanup;
-    }
+    if(isEncryptionAlgorithm(out->algorithm)) {
 
-    if(isEncryptionAlgorithm(alg)) {
-        // TODO
+        JwtCryptAlgorithm crypt = JWT_CRYPT_ALGORITHM_UNKNOWN;
+        if(jwtCryptAlgorithmParse(&crypt, jwtJsonObjectGetString(&out->header, "enc").data) != 0) {
+            return -24;
+        }
 
-    } else if(isHmacAlgorithm(alg)) {
+        size_t dotIndex = 0;
+        size_t searchIndex = 0;
+        size_t dots[4] = {};
+        while(dotIndex < 4 && nextIndexOf(token, '.', searchIndex, &dots[dotIndex]) == 0) {
+            searchIndex = dots[dotIndex] + 1;
+            dotIndex++;
+        }
 
-        Span<uint8_t> remaining = {};
-        remaining.data = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(token.data));
-        remaining.length = lastDot;
+        if(dots[0] != firstDot || dots[3] != lastDot) {
+            return -26;
+        }
 
-        Span<uint8_t> mac = {};
-        jwt::b64url::decodeNew(token.data + lastDot + 1, token.length - lastDot - 1, &mac);
-        result = jwt::validateHmac(remaining, mac, key, alg);
+        Span<uint8_t> aad = {};
+        aad.data = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(token.data));
+        aad.length = firstDot;
+
+        Span<uint8_t> keyData;
+        if(out->algorithm == JWT_ALGORITHM_DIRECT) {
+            if(key->type != JWT_KEY_TYPE_OCTET_SEQUENCE) {
+                return -27;
+            }
+            keyData = *static_cast<Span<uint8_t>*>(key->keyData);
+        } else {
+            keyData = {};
+            if(jwt::b64url::decodeNew(token.data + dots[0] + 1, dots[1] - dots[0] - 1, &keyData) != 0) {
+                return -28;
+            }
+            // TODO: Decrypt key
+        }
+
+        Span<uint8_t> iv = {};
+        if(jwt::b64url::decodeNew(token.data + dots[1] + 1, dots[2] - dots[1] - 1, &iv) != 0) {
+            return -28;
+        }
+
+        Span<uint8_t> cipherText = {};
+        if(jwt::b64url::decodeNew(token.data + dots[2] + 1, dots[3] - dots[2] - 1, &cipherText)  != 0) {
+            return -28;
+        }
+
+        Span<uint8_t> tag = {};
+        if(jwt::b64url::decodeNew(token.data + lastDot + 1, token.length - lastDot - 1, &tag) != 0) {
+            return -28;
+        }
+
+        size_t payloadLen = 0;
+    
+        jwt::enc::decryptAndVerify(cipherText, tag, aad, iv, keyData, crypt, {}, &payloadLen);
+
+        Span<uint8_t> decodedPayload = Span<uint8_t>(new uint8_t[payloadLen], payloadLen);
+        JWT_CHECK(jwt::enc::decryptAndVerify(cipherText, tag, aad, iv, keyData, crypt, decodedPayload, &payloadLen));
+
+        JwtJsonElement payload;
+        JWT_CHECK(jwtReadJsonString(&payload, reinterpret_cast<char*>(decodedPayload.data), payloadLen));
+
+        if(payload.type != JWT_JSON_ELEMENT_TYPE_OBJECT) {
+            jwtJsonElementDestroy(&payload);
+            return -30;
+        }
+
+        out->payload = payload.object;
 
     } else {
-        // Signing algorithm
+
         Span<uint8_t> remaining = {};
         remaining.data = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(token.data));
         remaining.length = lastDot;
 
-        Span<uint8_t> sig = {};
-        jwt::b64url::decodeNew(token.data + lastDot + 1, token.length - lastDot - 1, &sig);
-        result = jwt::validateSignature(remaining, sig, key, alg);
+        if(isHmacAlgorithm(out->algorithm)) {
+
+            Span<uint8_t> mac = {};
+            jwt::b64url::decodeNew(token.data + lastDot + 1, token.length - lastDot - 1, &mac);
+            JWT_CHECK(jwt::hmac::validate(remaining, mac, key, out->algorithm));
+
+        } else if(isSigningAlgorithm(out->algorithm)) {
+
+            Span<uint8_t> sig = {};
+            jwt::b64url::decodeNew(token.data + lastDot + 1, token.length - lastDot - 1, &sig);
+            JWT_CHECK(jwt::sig::validate(remaining, sig, key, out->algorithm));
+
+        }
+
+
+        Span<uint8_t> payloadData = {};
+        payloadData.data = remaining.data + firstDot + 1;
+        payloadData.length = lastDot - firstDot - 1;
+
+        JwtJsonElement payload = {};
+        Span<uint8_t> payloadJson = {};
+        jwt::b64url::decodeNew(payloadData.data, payloadData.length, &payloadJson);
+        JWT_CHECK(jwtReadJsonString(&payload, reinterpret_cast<char*>(payloadJson.data), payloadJson.length));
+        if(payload.type != JWT_JSON_ELEMENT_TYPE_OBJECT) {
+            jwtJsonElementDestroy(&payload);
+            return -30;
+        }
+
+        out->payload = payload.object;
     }
 
-cleanup:
+    bool allowExpired = flags & JWT_VERIFY_FLAG_ALLOW_EXPIRED;
+    bool allowEarly = flags & JWT_VERIFY_FLAG_ALLOW_EARLY;
 
-    jwtJsonObjectDestroy(&header);
-    return result;
+    if(!allowExpired) {
+        JwtJsonElement exp = jwtJsonObjectGet(&out->payload, JWT_CLAIM_EXPIRATION);
+        if(exp.type != JWT_JSON_ELEMENT_TYPE_NULL) {
+            if(exp.type != JWT_JSON_ELEMENT_TYPE_NUMERIC) {
+                return -31;
+            }
+            uint64_t now = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            
+            JwtNumeric number = jwtJsonElementAsNumber(exp);
+            if(number.type == JWT_NUMBER_TYPE_UNSIGNED && number.u64 < now) {
+                return 2;
+            }
+            if(number.type == JWT_NUMBER_TYPE_SIGNED && number.i64 < now) {
+                return 2;
+            }
+            if(number.type == JWT_NUMBER_TYPE_FLOAT && number.f64 < now) {
+                return 2;
+            }
+        }
+
+    }
+    if(!allowEarly) {
+
+        JwtJsonElement nbf = jwtJsonObjectGet(&out->payload, JWT_CLAIM_NOT_BEFORE);
+        if(nbf.type != JWT_JSON_ELEMENT_TYPE_NULL) {
+            if(nbf.type != JWT_JSON_ELEMENT_TYPE_NUMERIC) {
+                return -31;
+            }
+            uint64_t now = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            
+            JwtNumeric number = jwtJsonElementAsNumber(nbf);
+            if(number.type == JWT_NUMBER_TYPE_UNSIGNED && number.u64 > now) {
+                return 3;
+            }
+            if(number.type == JWT_NUMBER_TYPE_SIGNED && number.i64 > now) {
+                return 3;
+            }
+            if(number.type == JWT_NUMBER_TYPE_FLOAT && number.f64 > now) {
+                return 3;
+            }
+        }
+    }
+
+    return 0;
 }
 
 
-int32_t jwtVerifyTokenWithSet(JwtString token, JwtKey* key, JwtParsedToken* out, bool allowUnprotected) {
+int32_t jwtVerifyTokenWithSet(JwtString token, JwtKey* key, JwtParsedToken* out, JwtVerifyFlags flags) {
     return 0;
 }

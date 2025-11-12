@@ -129,7 +129,7 @@ TEST(RSA, ParseAndSign) {
     uint8_t output[512] = {};
     size_t outputLength = 0;
 
-    int32_t out = jwt::generateSignature(
+    int32_t out = jwt::sig::generate(
         Span<uint8_t>(reinterpret_cast<uint8_t*>(const_cast<char*>(message)),
                       strlen(message)),
         &key, JWT_ALGORITHM_PS256, Span<uint8_t>(output, 512), &outputLength);
@@ -161,7 +161,7 @@ TEST(EC, ParseAndSign) {
     uint8_t output[512] = {};
     size_t outputLength = 0;
 
-    int32_t out = jwt::generateSignature(
+    int32_t out = jwt::sig::generate(
         Span<uint8_t>(reinterpret_cast<uint8_t*>(const_cast<char*>(message)),
                       strlen(message)),
         &key, JWT_ALGORITHM_ES256, Span<uint8_t>(output, 512), &outputLength);

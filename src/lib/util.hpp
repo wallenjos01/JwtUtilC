@@ -142,6 +142,16 @@ inline int32_t firstIndexOf(JwtString str, char c, size_t* index) {
     return -1;
 }
 
+inline int32_t nextIndexOf(JwtString str, char c, size_t startIndex, size_t* index) {
+    for(auto i = startIndex ; i < str.length ; i++) {
+        if(str.data[i] == c) {
+            *index = i;
+            return 0;
+        }
+    }
+    return -1;
+}
+
 inline int32_t lastIndexOf(JwtString str, char c, size_t* index) {
     for(auto i = str.length - 1; i >= 0 ; i--) {
         if(str.data[i] == c) {
