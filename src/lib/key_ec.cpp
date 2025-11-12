@@ -7,8 +7,15 @@
  * See also key.cpp, key_rsa.cpp
  */
 
+#include "algorithm.hpp"
+#include "hash.hpp"
+#include "key.hpp"
+#include "util.hpp"
+
 #include <jwt/json.h>
 #include <jwt/key.h>
+#include <jwt/result.h>
+
 #include <openssl/core.h>
 #include <openssl/core_names.h>
 #include <openssl/ec.h>
@@ -18,10 +25,6 @@
 #include <openssl/param_build.h>
 #include <openssl/params.h>
 
-#include "algorithm.hpp"
-#include "hash.hpp"
-#include "key.hpp"
-#include "util.hpp"
 
 namespace {
 
@@ -74,23 +77,23 @@ int32_t getCurveNid(Curve curve) {
 
 } // namespace
 
-JwtKeyParseResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
+JwtResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
 
 
     JwtString crv = jwtJsonObjectGetString(obj, "crv");
     if (crv.data == nullptr) {
-        return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
+        return JWT_RESULT_MISSING_REQUIRED_KEY_PARAM;
     }
 
     Curve curve;
     if (parseCurve(&curve, crv) != 0) {
-        return JWT_KEY_PARSE_RESULT_UNKNOWN_CURVE;
+        return JWT_RESULT_UNKNOWN_CURVE;
     }
 
     JwtString xB64 = jwtJsonObjectGetString(obj, "x");
     JwtString yB64 = jwtJsonObjectGetString(obj, "y");
     if (xB64.data == nullptr || yB64.data == nullptr) {
-        return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
+        return JWT_RESULT_MISSING_REQUIRED_KEY_PARAM;
     }
 
     JwtString dB64 = jwtJsonObjectGetString(obj, "d");
@@ -101,19 +104,16 @@ JwtKeyParseResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
 
     BIGNUM* d;
 
-    CHECK(jwt::b64url::decodeNew(xB64.data, xB64.length, &xs),
-          JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
-    CHECK(jwt::b64url::decodeNew(yB64.data, yB64.length, &ys),
-          JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
+    JWT_CHECK(jwt::b64url::decodeNew(xB64.data, xB64.length, &xs));
+    JWT_CHECK(jwt::b64url::decodeNew(yB64.data, yB64.length, &ys));
 
     if (dB64.data) {
-        CHECK(jwt::b64url::decodeNew(dB64.data, dB64.length, &ds),
-              JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
+        JWT_CHECK(jwt::b64url::decodeNew(dB64.data, dB64.length, &ds));
     }
 
     size_t coordLen = COORD_LEN[curve];
     if(xs.length != coordLen || ys.length != coordLen) {
-        return JWT_KEY_PARSE_RESULT_KEY_CREATE_FAILED;
+        return JWT_RESULT_INVALID_COORDINATE_LENGTH;
     }
 
     size_t keyLen = (coordLen * 2) + 1;
@@ -141,12 +141,14 @@ JwtKeyParseResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
     OSSL_PARAM_BLD_free(paramBuilder);
     BN_free(d);
 
-    JwtKeyParseResult result = JWT_KEY_PARSE_RESULT_SUCCESS;
+    JwtResult result = JWT_RESULT_SUCCESS;
 
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr);
     if (ctx == nullptr) {
+        JWT_REPORT_ERROR("EVP_PKEY_CTX_new_from_name() failed");
+        ERR_print_errors_fp(stderr);
         OSSL_PARAM_free(params);
-        return JWT_KEY_PARSE_RESULT_UNEXPECTED_ERROR;
+        return JWT_RESULT_UNEXPECTED_ERROR;
     }
 
     int selection =
@@ -155,8 +157,9 @@ JwtKeyParseResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
     EVP_PKEY** pkey = reinterpret_cast<EVP_PKEY**>(&key->keyData);
     EVP_PKEY_fromdata_init(ctx);
     if (EVP_PKEY_fromdata(ctx, pkey, selection, params) != 1) {
+        JWT_REPORT_ERROR("EVP_PKEY_fromdata() failed");
         ERR_print_errors_fp(stderr);
-        result = JWT_KEY_PARSE_RESULT_KEY_CREATE_FAILED;
+        result = JWT_RESULT_KEY_CREATE_FAILED;
     }
 
     OSSL_PARAM_free(params);

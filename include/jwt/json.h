@@ -7,6 +7,7 @@ extern "C" {
 
 #include "core.h"
 #include "stream.h"
+#include "result.h"
 
 #include <stdint.h>
 
@@ -20,16 +21,6 @@ enum JwtJsonElementType {
     JWT_JSON_ELEMENT_TYPE_BOOLEAN,
     JWT_JSON_ELEMENT_TYPE_ARRAY,
     JWT_JSON_ELEMENT_TYPE_OBJECT
-};
-
-/**
- * Enumerates all possible result codes from a call to jwtReadJson*();
- */
-enum JwtJsonParseResult : int32_t {
-    JWT_JSON_PARSE_RESULT_SUCCESS = 0,
-    JWT_JSON_PARSE_RESULT_UNEXPECTED_SYMBOL = -1,
-    JWT_JSON_PARSE_RESULT_UNEXPECTED_EOF = -2,
-    JWT_JSON_PARSE_RESULT_IO_ERROR = -3
 };
 
 /**
@@ -799,8 +790,8 @@ JwtJsonObjectEntry* jwtJsonObjectIteratorNext(JwtJsonObjectIterator* iterator);
  * @param reader The JSON reader
  * @return 0 if successful, or some value indicating an error code otherwise
  */
-JwtJsonParseResult jwtReadJsonReader(JwtJsonElement* outElement,
-                                     JwtReader reader);
+JwtResult jwtReadJsonReader(JwtJsonElement* outElement,
+                            JwtReader reader);
 
 /**
  * @brief Parses a JSON element from the given string, and stores it in the
@@ -810,8 +801,8 @@ JwtJsonParseResult jwtReadJsonReader(JwtJsonElement* outElement,
  * @param length The length of the JSON string
  * @return 0 if successful, or some value indicating an error code otherwise
  */
-JwtJsonParseResult jwtReadJsonString(JwtJsonElement* outElement,
-                                     const char* data, size_t length);
+JwtResult jwtReadJsonString(JwtJsonElement* outElement,
+                            const char* data, size_t length);
 
 /**
  * @brief Writes a JSON element into the given writer.
@@ -819,7 +810,7 @@ JwtJsonParseResult jwtReadJsonString(JwtJsonElement* outElement,
  * @param writer The writer to write to.
  * @return 0 on success, -1 on error
  */
-int32_t jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer);
+JwtResult jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer);
 
 /**
  * @brief Writes a JSON element into the given string.
@@ -827,7 +818,7 @@ int32_t jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer);
  * @param writer The string to create.
  * @return 0 on success, -1 on error
  */
-int32_t jwtWriteJsonString(JwtJsonElement* element, JwtString* string);
+JwtResult jwtWriteJsonString(JwtJsonElement* element, JwtString* string);
 
 
 /**
@@ -836,7 +827,7 @@ int32_t jwtWriteJsonString(JwtJsonElement* element, JwtString* string);
  * @param writer The writer to write to.
  * @return 0 on success, -1 on error
  */
-int32_t jwtWriteJsonObjectWriter(JwtJsonObject* object, JwtWriter writer);
+JwtResult jwtWriteJsonObjectWriter(JwtJsonObject* object, JwtWriter writer);
 
 /**
  * @brief Writes a JSON object into the given string.
@@ -844,7 +835,7 @@ int32_t jwtWriteJsonObjectWriter(JwtJsonObject* object, JwtWriter writer);
  * @param writer The string to create.
  * @return 0 on success, -1 on error
  */
-int32_t jwtWriteJsonObjectString(JwtJsonObject* object, JwtString* string);
+JwtResult jwtWriteJsonObjectString(JwtJsonObject* object, JwtString* string);
 
 #ifdef __cplusplus
 }

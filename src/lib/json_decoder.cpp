@@ -1,48 +1,42 @@
 /**
  * Josh Wallentine
  * Created 9/12/25
- * Modified 9/30/25
+ * Modified 11/12/25
  *
  * Partial implementation of include/jwt/json.h
  * See also json.cpp and json_encoder.cpp
  */
 
 #include "jwt/core.h"
+#include "jwt/result.h"
 #include "utf8.hpp"
+#include "util.hpp"
 #include <jwt/json.h>
 #include <jwt/stream.h>
 #include <string>
 #include <iostream>
 
-#define CHECK(expression)                                                      \
-    {                                                                          \
-        JwtJsonParseResult checkResult = expression;                           \
-        if (checkResult != JWT_JSON_PARSE_RESULT_SUCCESS) {                    \
-            return checkResult;                                                \
-        }                                                                      \
-    }
 #define NEXT_REAL(reader, lastReadChar)                                        \
     {                                                                          \
-        int32_t nextResult = nextReal(reader, lastReadChar);                   \
-        if (nextResult == -1) {                                                \
-            std::cout << "Failed to read " __FILE__ ":" << __LINE__ << "\n";   \
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_EOF;                       \
-        } else if (nextResult == 1) {                                          \
+        JwtResult nextResult =                                                 \
+            nextReal(reader, lastReadChar)                    ;                \
+        if (nextResult == JWT_RESULT_EOF) {                                    \
             std::cout << "End of file " __FILE__ ":" << __LINE__ << "\n";      \
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_EOF;                       \
+            return JWT_RESULT_JSON_UNEXPECTED_EOF;                             \
+        } else if(nextResult != JWT_RESULT_SUCCESS) {                          \
+            return nextResult;                                                 \
         }                                                                      \
     }
 
 #define NEXT_CHAR(reader, lastReadChar)                                        \
     {                                                                          \
-        int32_t nextResult =                                                   \
+        JwtResult nextResult =                                                 \
             jwtReaderReadAll(reader, lastReadChar, 1, nullptr);                \
-        if (nextResult == -1) {                                                \
-            std::cout << "Failed to read " __FILE__ ":" << __LINE__ << "\n";   \
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_EOF;                       \
-        } else if (nextResult == 1) {                                          \
+        if (nextResult == JWT_RESULT_EOF) {                                    \
             std::cout << "End of file " __FILE__ ":" << __LINE__ << "\n";      \
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_EOF;                       \
+            return JWT_RESULT_JSON_UNEXPECTED_EOF;                             \
+        } else if(nextResult != JWT_RESULT_SUCCESS) {                          \
+            return nextResult;                                                 \
         }                                                                      \
     }
 
@@ -50,25 +44,26 @@ namespace {
 
 bool isWhitespace(char c) { return c <= 0x20; }
 
-int32_t nextReal(JwtReader reader, char* lastReadChar) {
+JwtResult nextReal(JwtReader reader, char* lastReadChar) {
 
     size_t numRead;
     do {
-        if (jwtReaderRead(reader, lastReadChar, 1, &numRead) < 0) {
-            return -1;
+        JwtResult res = jwtReaderRead(reader, lastReadChar, 1, &numRead);
+        if(res < 0) {
+            return res;
         }
         if (numRead == 0) {
-            return 1;
+            return JWT_RESULT_EOF;
         }
     } while (isWhitespace(*lastReadChar));
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-JwtJsonParseResult parseJsonElement(JwtJsonElement* outElement,
+JwtResult parseJsonElement(JwtJsonElement* outElement,
                                     JwtReader reader, char* lastReadChar);
 
-JwtJsonParseResult parseString(JwtJsonElement* element, JwtReader reader,
+JwtResult parseString(JwtJsonElement* element, JwtReader reader,
                                char* lastReadChar) {
 
     std::string stringData = "";
@@ -76,17 +71,17 @@ JwtJsonParseResult parseString(JwtJsonElement* element, JwtReader reader,
     while (true) {
         NEXT_CHAR(reader, lastReadChar);
         if (*lastReadChar < 0x20) {
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_SYMBOL;
+            return JWT_RESULT_JSON_UNEXPECTED_SYMBOL;
         }
 
         if (*lastReadChar == '"') {
             if (nextReal(reader, lastReadChar) < 0) {
-                return JWT_JSON_PARSE_RESULT_IO_ERROR;
+                return JWT_RESULT_IO_ERROR;
             }
             element->type = JWT_JSON_ELEMENT_TYPE_STRING;
             element->string =
                 jwtStringCreateSized(stringData.c_str(), stringData.length());
-            return JWT_JSON_PARSE_RESULT_SUCCESS;
+            return JWT_RESULT_SUCCESS;
         }
 
         if (*lastReadChar == '\\') {
@@ -119,7 +114,7 @@ JwtJsonParseResult parseString(JwtJsonElement* element, JwtReader reader,
             case 'u': {
                 char codePointHex[4];
                 if (jwtReaderReadAll(reader, codePointHex, 4, nullptr) != 0) {
-                    return JWT_JSON_PARSE_RESULT_UNEXPECTED_EOF;
+                    return JWT_RESULT_JSON_UNEXPECTED_EOF;
                 }
 
                 uint32_t codePoint = 0;
@@ -134,7 +129,7 @@ JwtJsonParseResult parseString(JwtJsonElement* element, JwtReader reader,
                     } else if (c >= '0' && c <= '9') {
                         value = c - '0';
                     } else {
-                        return JWT_JSON_PARSE_RESULT_UNEXPECTED_SYMBOL;
+                        return JWT_RESULT_JSON_UNEXPECTED_SYMBOL;
                     }
 
                     codePoint |= value;
@@ -151,7 +146,7 @@ JwtJsonParseResult parseString(JwtJsonElement* element, JwtReader reader,
 };
 
 template <typename T>
-JwtJsonParseResult parseExponent(JwtJsonElement* output, T* outValue,
+JwtResult parseExponent(JwtJsonElement* output, T* outValue,
                                  JwtReader reader, char* lastRead,
                                  T literalPart, bool& negative) {
 
@@ -160,7 +155,7 @@ JwtJsonParseResult parseExponent(JwtJsonElement* output, T* outValue,
     negative = negative ^ (*lastRead == '-');
     if (*lastRead == '+' || *lastRead == '-') {
         if (jwtReaderReadAll(reader, lastRead, 1, nullptr) != 0) {
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_EOF;
+            return JWT_RESULT_JSON_UNEXPECTED_EOF;
         }
     }
 
@@ -168,7 +163,7 @@ JwtJsonParseResult parseExponent(JwtJsonElement* output, T* outValue,
     while (true) {
         int32_t res = nextReal(reader, lastRead);
         if (res < 0) {
-            return JWT_JSON_PARSE_RESULT_IO_ERROR;
+            return JWT_RESULT_IO_ERROR;
         }
         if (res == 1 || *lastRead < '0' || *lastRead > '9')
             break;
@@ -183,10 +178,10 @@ JwtJsonParseResult parseExponent(JwtJsonElement* output, T* outValue,
 
     *outValue = out;
 
-    return JWT_JSON_PARSE_RESULT_SUCCESS;
+    return JWT_RESULT_SUCCESS;
 }
 
-JwtJsonParseResult parseDecimalPart(JwtJsonElement* output, JwtReader reader,
+JwtResult parseDecimalPart(JwtJsonElement* output, JwtReader reader,
                                     char* lastRead, uint64_t wholePart,
                                     bool negative) {
 
@@ -197,7 +192,7 @@ JwtJsonParseResult parseDecimalPart(JwtJsonElement* output, JwtReader reader,
         while (true) {
             int32_t res = nextReal(reader, lastRead);
             if (res < 0) {
-                return JWT_JSON_PARSE_RESULT_IO_ERROR;
+                return JWT_RESULT_IO_ERROR;
             }
             if (res == 1 || *lastRead < '0' || *lastRead > '9')
                 break;
@@ -212,11 +207,8 @@ JwtJsonParseResult parseDecimalPart(JwtJsonElement* output, JwtReader reader,
 
         double fullValue = wholePart + decimal;
         if (*lastRead == 'E' || *lastRead == 'e') {
-            JwtJsonParseResult res = parseExponent(
-                output, &fullValue, reader, lastRead, fullValue, negative);
-            if (res != JWT_JSON_PARSE_RESULT_SUCCESS) {
-                return res;
-            }
+            JWT_CHECK(parseExponent(
+                output, &fullValue, reader, lastRead, fullValue, negative));
         }
 
         if (negative)
@@ -230,11 +222,8 @@ JwtJsonParseResult parseDecimalPart(JwtJsonElement* output, JwtReader reader,
     case 'E':
     case 'e': {
 
-        JwtJsonParseResult res = parseExponent(output, &wholePart, reader,
-                                               lastRead, wholePart, negative);
-        if (res != JWT_JSON_PARSE_RESULT_SUCCESS) {
-            return res;
-        }
+        JWT_CHECK(parseExponent(output, &wholePart, reader,
+                                               lastRead, wholePart, negative));
 
         // Fall through to default case
     }
@@ -254,10 +243,10 @@ JwtJsonParseResult parseDecimalPart(JwtJsonElement* output, JwtReader reader,
         nextReal(reader, lastRead);
     }
 
-    return JWT_JSON_PARSE_RESULT_SUCCESS;
+    return JWT_RESULT_SUCCESS;
 }
 
-JwtJsonParseResult parseNumber(JwtJsonElement* output, JwtReader reader,
+JwtResult parseNumber(JwtJsonElement* output, JwtReader reader,
                                char* lastRead) {
 
     bool negative = false;
@@ -270,14 +259,14 @@ JwtJsonParseResult parseNumber(JwtJsonElement* output, JwtReader reader,
 
         int32_t res = nextReal(reader, lastRead);
         if (res < 0) {
-            return JWT_JSON_PARSE_RESULT_IO_ERROR;
+            return JWT_RESULT_IO_ERROR;
         } else if (res == 0) {
             return parseDecimalPart(output, reader, lastRead, 0, negative);
         } else {
             output->type = JWT_JSON_ELEMENT_TYPE_NUMERIC;
             output->number.type = JWT_NUMBER_TYPE_SIGNED;
             output->number.i64 = 0;
-            return JWT_JSON_PARSE_RESULT_SUCCESS;
+            return JWT_RESULT_SUCCESS;
         }
     }
 
@@ -285,7 +274,7 @@ JwtJsonParseResult parseNumber(JwtJsonElement* output, JwtReader reader,
     while (true) {
         int32_t res = nextReal(reader, lastRead);
         if (res < 0) {
-            return JWT_JSON_PARSE_RESULT_IO_ERROR;
+            return JWT_RESULT_IO_ERROR;
         }
         if (res == 1 || *lastRead < '0' || *lastRead > '9')
             break;
@@ -297,19 +286,19 @@ JwtJsonParseResult parseNumber(JwtJsonElement* output, JwtReader reader,
 }
 
 // Assume last read == '['
-JwtJsonParseResult parseArray(JwtJsonElement* output, JwtReader reader,
+JwtResult parseArray(JwtJsonElement* output, JwtReader reader,
                               char* lastRead) {
     NEXT_REAL(reader, lastRead);
     if (*lastRead == ']') {
 
         if (nextReal(reader, lastRead) < 0) {
-            return JWT_JSON_PARSE_RESULT_IO_ERROR;
+            return JWT_RESULT_IO_ERROR;
         }
 
         // Empty array
         output->type = JWT_JSON_ELEMENT_TYPE_ARRAY;
         jwtJsonArrayCreate(&output->array);
-        return JWT_JSON_PARSE_RESULT_SUCCESS;
+        return JWT_RESULT_SUCCESS;
     }
 
     JwtJsonArray array = {};
@@ -319,41 +308,41 @@ JwtJsonParseResult parseArray(JwtJsonElement* output, JwtReader reader,
 
         JwtJsonElement* element =
             static_cast<JwtJsonElement*>(jwtListPush(&array));
-        CHECK(parseJsonElement(element, reader, lastRead));
+        JWT_CHECK(parseJsonElement(element, reader, lastRead));
 
         if (*lastRead == ']') {
             break;
         } else if (*lastRead == ',') {
             NEXT_REAL(reader, lastRead);
         } else {
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_SYMBOL;
+            return JWT_RESULT_JSON_UNEXPECTED_SYMBOL;
         }
     }
 
     if (nextReal(reader, lastRead) < 0) {
-        return JWT_JSON_PARSE_RESULT_IO_ERROR;
+        return JWT_RESULT_IO_ERROR;
     }
 
     output->type = JWT_JSON_ELEMENT_TYPE_ARRAY;
     output->array = array;
 
-    return JWT_JSON_PARSE_RESULT_SUCCESS;
+    return JWT_RESULT_SUCCESS;
 }
 
 // Assume last read == '{'
-JwtJsonParseResult parseObject(JwtJsonElement* output, JwtReader reader,
-                               char* lastRead) {
+JwtResult parseObject(JwtJsonElement* output, JwtReader reader,
+                      char* lastRead) {
 
     NEXT_REAL(reader, lastRead);
     if (*lastRead == '}') {
 
         if (nextReal(reader, lastRead) < 0) {
-            return JWT_JSON_PARSE_RESULT_IO_ERROR;
+            return JWT_RESULT_IO_ERROR;
         }
         // Empty object
         output->type = JWT_JSON_ELEMENT_TYPE_OBJECT;
         jwtJsonObjectCreate(&output->object);
-        return JWT_JSON_PARSE_RESULT_SUCCESS;
+        return JWT_RESULT_SUCCESS;
     }
 
     JwtJsonObject object = {};
@@ -363,20 +352,20 @@ JwtJsonParseResult parseObject(JwtJsonElement* output, JwtReader reader,
     while (true) {
 
         if (*lastRead != '"') {
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_SYMBOL;
+            return JWT_RESULT_JSON_UNEXPECTED_SYMBOL;
         }
 
         JwtJsonElement key = {};
-        CHECK(parseString(&key, reader, lastRead));
+        JWT_CHECK(parseString(&key, reader, lastRead));
 
         if (*lastRead != ':') {
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_SYMBOL;
+            return JWT_RESULT_JSON_UNEXPECTED_SYMBOL;
         }
 
         NEXT_REAL(reader, lastRead);
 
         JwtJsonElement value = {};
-        CHECK(parseJsonElement(&value, reader, lastRead));
+        JWT_CHECK(parseJsonElement(&value, reader, lastRead));
 
         jwtJsonObjectSetWithString(&object, key.string, value);
 
@@ -386,21 +375,21 @@ JwtJsonParseResult parseObject(JwtJsonElement* output, JwtReader reader,
         } else if (*lastRead == ',') {
             NEXT_REAL(reader, lastRead);
         } else {
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_SYMBOL;
+            return JWT_RESULT_JSON_UNEXPECTED_SYMBOL;
         }
     }
 
     if (nextReal(reader, lastRead) < 0) {
-        return JWT_JSON_PARSE_RESULT_IO_ERROR;
+        return JWT_RESULT_IO_ERROR;
     }
 
     output->type = JWT_JSON_ELEMENT_TYPE_OBJECT;
     output->object = object;
 
-    return JWT_JSON_PARSE_RESULT_SUCCESS;
+    return JWT_RESULT_SUCCESS;
 }
 
-JwtJsonParseResult parseJsonElement(JwtJsonElement* outElement,
+JwtResult parseJsonElement(JwtJsonElement* outElement,
                                     JwtReader reader, char* lastReadChar) {
 
     switch (*lastReadChar) {
@@ -417,10 +406,10 @@ JwtJsonParseResult parseJsonElement(JwtJsonElement* outElement,
         char word[3];
         if (jwtReaderReadAll(reader, word, 3, nullptr) != 0 ||
             memcmp("rue", word, 3) != 0) {
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_SYMBOL;
+            return JWT_RESULT_JSON_UNEXPECTED_SYMBOL;
         }
         if (nextReal(reader, lastReadChar) < 0) {
-            return JWT_JSON_PARSE_RESULT_IO_ERROR;
+            return JWT_RESULT_IO_ERROR;
         }
 
         outElement->type = JWT_JSON_ELEMENT_TYPE_BOOLEAN;
@@ -431,10 +420,10 @@ JwtJsonParseResult parseJsonElement(JwtJsonElement* outElement,
         char word[4];
         if (jwtReaderReadAll(reader, word, 4, nullptr) != 0 ||
             memcmp("alse", word, 4) != 0) {
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_SYMBOL;
+            return JWT_RESULT_JSON_UNEXPECTED_SYMBOL;
         }
         if (nextReal(reader, lastReadChar) < 0) {
-            return JWT_JSON_PARSE_RESULT_IO_ERROR;
+            return JWT_RESULT_IO_ERROR;
         }
         outElement->type = JWT_JSON_ELEMENT_TYPE_BOOLEAN;
         outElement->boolean = false;
@@ -444,10 +433,10 @@ JwtJsonParseResult parseJsonElement(JwtJsonElement* outElement,
         char word[3];
         if (jwtReaderReadAll(reader, word, 3, nullptr) != 0 ||
             memcmp("ull", word, 3) != 0) {
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_SYMBOL;
+            return JWT_RESULT_JSON_UNEXPECTED_SYMBOL;
         }
         if (nextReal(reader, lastReadChar) < 0) {
-            return JWT_JSON_PARSE_RESULT_IO_ERROR;
+            return JWT_RESULT_IO_ERROR;
         }
 
         memset(outElement, 0, sizeof(JwtJsonElement));
@@ -459,32 +448,36 @@ JwtJsonParseResult parseJsonElement(JwtJsonElement* outElement,
             *lastReadChar == '-') { // Number
             return parseNumber(outElement, reader, lastReadChar);
         } else { // Invalid
-            return JWT_JSON_PARSE_RESULT_UNEXPECTED_SYMBOL;
+            return JWT_RESULT_JSON_UNEXPECTED_SYMBOL;
         }
     }
     }
 
-    return JWT_JSON_PARSE_RESULT_SUCCESS;
+    return JWT_RESULT_SUCCESS;
 }
 
 } // namespace
 
-JwtJsonParseResult jwtReadJsonReader(JwtJsonElement* outElement,
+JwtResult jwtReadJsonReader(JwtJsonElement* outElement,
                                      JwtReader reader) {
 
     char lastReadChar;
     NEXT_REAL(reader, &lastReadChar);
 
-    return parseJsonElement(outElement, reader, &lastReadChar);
+    JwtResult out = parseJsonElement(outElement, reader, &lastReadChar);
+    if(out < 0) {
+        jwtJsonElementDestroy(outElement);
+    }
+    return out;
 }
 
-JwtJsonParseResult jwtReadJsonString(JwtJsonElement* outElement,
+JwtResult jwtReadJsonString(JwtJsonElement* outElement,
                                      const char* data, size_t length) {
 
     JwtReader reader;
     jwtReaderCreateForBuffer(&reader, data, length);
 
-    JwtJsonParseResult result = jwtReadJsonReader(outElement, reader);
+    JwtResult result = jwtReadJsonReader(outElement, reader);
 
     jwtReaderClose(&reader);
 

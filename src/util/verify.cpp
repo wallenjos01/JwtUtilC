@@ -1,56 +1,49 @@
 #include "app.hpp"
 #include "jwt/key.h"
+#include "jwt/result.h"
 
 #include <jwt/json.h>
 #include <jwt/token.h>
 
-int verifyToken(argparse::ArgumentParser &args) {
+JwtResult verifyToken(argparse::ArgumentParser &args) {
 
     std::string tokenStr = args.get("token");
     JwtString token = { .length = tokenStr.length(), .data = tokenStr.c_str() };
 
     JwtJsonObject header;
-    if(jwtReadTokenHeader(token, &header) != 0) {
-        std::cerr << "Unable to parse token header!\n";
-        return 1;
-    }
+    JWT_CHECK(jwtReadTokenHeader(token, &header));
 
     JwtAlgorithm algorithm;
-    if(jwtAlgorithmParse(&algorithm, jwtJsonObjectGetString(&header, "alg").data) != 0) {
-        std::cerr << "Unable to parse token algorithm!\n";
-        return 1;
-    }
+    JWT_CHECK(jwtAlgorithmParse(&algorithm, jwtJsonObjectGetString(&header, "alg").data));
 
     JwtKey key = {};
     if(algorithm != JWT_ALGORITHM_NONE) {
         JwtReader keyReader = {};
-        if(jwtReaderCreateForFile(&keyReader, args.get("key").c_str()) != 0) {
-            std::cerr << "Unable to open key file at!\n";
-            return 1;
-        }
+        JWT_CHECK(jwtReaderCreateForFile(&keyReader, args.get("key").c_str()));
         
         JwtJsonElement keyJson = {};
-        JwtJsonParseResult result = jwtReadJsonReader(&keyJson, keyReader);
-        if(result != JWT_JSON_PARSE_RESULT_SUCCESS) {
+        JwtResult result = jwtReadJsonReader(&keyJson, keyReader);
+        if(result != JWT_RESULT_SUCCESS) {
             jwtReaderClose(&keyReader);
-            std::cerr << "Unable to read key file! (" << result << ")\n";
-            return 1;
+            std::cerr << "Unable to read key file!\n";
+            return result;
         }
         jwtReaderClose(&keyReader);
 
         if(keyJson.type != JWT_JSON_ELEMENT_TYPE_OBJECT) {
             std::cerr << "Key is not a JSON object!\n";
             jwtJsonElementDestroy(&keyJson);
-            return 1;
+            return JWT_RESULT_NOT_AN_OBJECT;
         }
 
-        if(jwtKeyParse(&key, &keyJson.object) != JWT_KEY_PARSE_RESULT_SUCCESS) {
+        result = jwtKeyParse(&key, &keyJson.object);
+        if(result != JWT_RESULT_SUCCESS) {
             std::cerr << "Key is not a valid JWK!\n";
             jwtJsonElementDestroy(&keyJson);
-            return 1;
+            return result;
         }
         jwtJsonElementDestroy(&keyJson);
-    } 
+    }
 
     JwtParsedToken parsed = {};
     JwtVerifyFlags flags = 0;
@@ -64,7 +57,7 @@ int verifyToken(argparse::ArgumentParser &args) {
         flags |= JWT_VERIFY_FLAG_ALLOW_EARLY;
     }
 
-    int32_t result = jwtVerifyToken(token, &key, &parsed, flags);
+    JwtResult result = jwtVerifyToken(token, &key, &parsed, flags);
     if(result < 0) {
         std::cerr << "Failed to parse token!\n";
         goto cleanup;
@@ -79,12 +72,12 @@ int verifyToken(argparse::ArgumentParser &args) {
         std::cout << "Verification successful!\n";
         
         JwtString headerStr = {};
-        jwtWriteJsonObjectString(&header, &headerStr);
+        JWT_CHECK_GOTO(jwtWriteJsonObjectString(&header, &headerStr), result, cleanup);
 
         std::cout << "Header: " << headerStr.data << "\n";
 
         JwtString payloadStr = {};
-        jwtWriteJsonObjectString(&parsed.payload, &payloadStr);
+        JWT_CHECK_GOTO(jwtWriteJsonObjectString(&parsed.payload, &payloadStr), result, cleanup);
 
         std::cout << "Payload: " << payloadStr.data << "\n";
 
@@ -94,12 +87,12 @@ int verifyToken(argparse::ArgumentParser &args) {
         if(output == "json") {
 
             JwtString headerStr = {};
-            jwtWriteJsonObjectString(&header, &headerStr);
+            JWT_CHECK_GOTO(jwtWriteJsonObjectString(&header, &headerStr), result, cleanup);
 
             std::cout << "{\"header\":" << headerStr.data << ",";
 
             JwtString payloadStr = {};
-            jwtWriteJsonObjectString(&parsed.payload, &payloadStr);
+            JWT_CHECK_GOTO(jwtWriteJsonObjectString(&parsed.payload, &payloadStr), result, cleanup);
 
             std::cout << "\"payload\":" << payloadStr.data << "}\n";
 
@@ -107,14 +100,14 @@ int verifyToken(argparse::ArgumentParser &args) {
         } else if(output == "payload") {
 
             JwtString payloadStr = {};
-            jwtWriteJsonObjectString(&parsed.payload, &payloadStr);
+            JWT_CHECK_GOTO(jwtWriteJsonObjectString(&parsed.payload, &payloadStr), result, cleanup);
 
             std::cout << payloadStr.data << "\n";
         
         } else if(output == "header") {
 
             JwtString headerStr = {};
-            jwtWriteJsonObjectString(&header, &headerStr);
+            JWT_CHECK_GOTO(jwtWriteJsonObjectString(&header, &headerStr), result, cleanup);
 
             std::cout << headerStr.data << "\n";
         }

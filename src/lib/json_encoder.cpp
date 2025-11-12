@@ -7,6 +7,7 @@
  * See also json_decoder.cpp and json.cpp
  */
 
+#include "jwt/result.h"
 #include "util.hpp"
 
 #include <jwt/core.h>
@@ -17,7 +18,7 @@
 
 namespace {
 
-int32_t writeString(JwtString string, JwtWriter writer) {
+JwtResult writeString(JwtString string, JwtWriter writer) {
     JWT_CHECK(jwtWriterWrite(writer, "\"", 1, nullptr));
 
     for (auto i = 0; i < string.length; i++) {
@@ -36,7 +37,7 @@ int32_t writeString(JwtString string, JwtWriter writer) {
             JWT_CHECK(jwtWriterWrite(writer, "\\f", 2, nullptr));
             break;
         case '\n':
-            JWT_CHECK(jwtWriterWrite(writer, "NumericDate\\n", 2, nullptr));
+            JWT_CHECK(jwtWriterWrite(writer, "\\n", 2, nullptr));
             break;
         case '\r':
             JWT_CHECK(jwtWriterWrite(writer, "\\r", 2, nullptr));
@@ -52,12 +53,12 @@ int32_t writeString(JwtString string, JwtWriter writer) {
     }
 
     JWT_CHECK(jwtWriterWrite(writer, "\"", 1, nullptr));
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
 } // namespace
 
-int32_t jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer) {
+JwtResult jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer) {
 
     switch (element->type) {
     case JWT_JSON_ELEMENT_TYPE_NULL:
@@ -107,11 +108,11 @@ int32_t jwtWriteJsonWriter(JwtJsonElement* element, JwtWriter writer) {
         jwtWriteJsonObjectWriter(&element->object, writer);
     }
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
 
-int32_t jwtWriteJsonString(JwtJsonElement* element, JwtString* string) {
+JwtResult jwtWriteJsonString(JwtJsonElement* element, JwtString* string) {
 
     JwtWriter writer = {};
     JWT_CHECK(jwtWriterCreateDynamic(&writer));
@@ -121,11 +122,11 @@ int32_t jwtWriteJsonString(JwtJsonElement* element, JwtString* string) {
     string->length = list->size;
     string->data = static_cast<char*>(jwtListReclaim(list));
  
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
 
-int32_t jwtWriteJsonObjectWriter(JwtJsonObject* object, JwtWriter writer) {
+JwtResult jwtWriteJsonObjectWriter(JwtJsonObject* object, JwtWriter writer) {
 
     JWT_CHECK(jwtWriterWrite(writer, "{", 1, nullptr));
 
@@ -146,10 +147,10 @@ int32_t jwtWriteJsonObjectWriter(JwtJsonObject* object, JwtWriter writer) {
     }
 
     JWT_CHECK(jwtWriterWrite(writer, "}", 1, nullptr));
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t jwtWriteJsonObjectString(JwtJsonObject* object, JwtString* string) {
+JwtResult jwtWriteJsonObjectString(JwtJsonObject* object, JwtString* string) {
 
     JwtWriter writer = {};
     JWT_CHECK(jwtWriterCreateDynamic(&writer));
@@ -159,5 +160,5 @@ int32_t jwtWriteJsonObjectString(JwtJsonObject* object, JwtString* string) {
     string->length = list->size;
     string->data = static_cast<char*>(jwtListReclaim(list));
  
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }

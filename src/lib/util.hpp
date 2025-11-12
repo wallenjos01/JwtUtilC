@@ -7,18 +7,13 @@
 #include <openssl/core.h>
 #include <string>
 
-#define CHECK(condition, ret)                                                  \
-    if (condition != 0) {                                                      \
-        return ret;                                                            \
-    }
+#ifdef NDEBUG
+#define JWT_REPORT_ERROR(error)
 
-#define JWT_CHECK(condition)                                                  \
-    {                                                                         \
-        int32_t ret = condition;                                              \
-        if(ret != 0) {                                                        \
-            return ret;                                                       \
-        }                                                                     \
-    }
+#else
+#define JWT_REPORT_ERROR(error) \
+    std::cerr << error << __FILE__ << ":" << __LINE__;
+#endif
 
 template <typename T> struct Span {
     T* data;

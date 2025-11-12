@@ -7,9 +7,9 @@ TEST(JsonDecoder, Int) {
     const char* json = "-10";
 
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, element.type);
 
     ASSERT_EQ(-10, jwtJsonElementAsInt(element));
@@ -22,9 +22,9 @@ TEST(JsonDecoder, Uint) {
     const char* json = "12";
 
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, element.type);
 
     ASSERT_EQ(12, jwtJsonElementAsUint(element));
@@ -37,9 +37,9 @@ TEST(JsonDecoder, Double) {
     const char* json = "10.25";
 
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NUMERIC, element.type);
 
     ASSERT_DOUBLE_EQ(10.25, jwtJsonElementAsDouble(element));
@@ -52,9 +52,9 @@ TEST(JsonDecoder, String) {
     const char* json = "\"Hello, World\"";
 
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_STRING, element.type);
 
     ASSERT_STREQ("Hello, World", jwtJsonElementAsString(element).data);
@@ -66,9 +66,9 @@ TEST(JsonDecoder, TrueLiteral) {
 
     const char* json = "true";
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_BOOLEAN, element.type);
 
     ASSERT_TRUE(element.boolean);
@@ -80,9 +80,9 @@ TEST(JsonDecoder, FalseLiteral) {
 
     const char* json = "false";
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_BOOLEAN, element.type);
 
     ASSERT_FALSE(element.boolean);
@@ -94,9 +94,9 @@ TEST(JsonDecoder, NullLiteral) {
 
     const char* json = "null";
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_NULL, element.type);
 
     jwtJsonElementDestroy(&element);
@@ -106,9 +106,9 @@ TEST(JsonDecoder, ArrayEmpty) {
 
     const char* json = "[]";
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_ARRAY, element.type);
 
     ASSERT_EQ(0, element.array.size);
@@ -120,9 +120,9 @@ TEST(JsonDecoder, ArraySingle) {
 
     const char* json = "[ 10 ]";
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_ARRAY, element.type);
 
     ASSERT_EQ(1, element.array.size);
@@ -138,9 +138,9 @@ TEST(JsonDecoder, ArrayDouble) {
 
     const char* json = "[ 10, true ]";
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_ARRAY, element.type);
 
     ASSERT_EQ(2, element.array.size);
@@ -161,9 +161,9 @@ TEST(JsonDecoder, ArrayComplex) {
     const char* json =
         "[ -33, false, \"Hello\", [1,2,3], {\"key\":\"value\"} ]";
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_ARRAY, element.type);
 
     ASSERT_EQ(5, element.array.size);
@@ -203,9 +203,9 @@ TEST(JsonDecoder, ObjectEmpty) {
 
     const char* json = "{}";
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_OBJECT, element.type);
 
     ASSERT_EQ(0, element.object.size);
@@ -217,9 +217,9 @@ TEST(JsonDecoder, ObjectSingle) {
 
     const char* json = "{\"key\":10}";
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_OBJECT, element.type);
 
     JwtJsonObject obj = jwtJsonElementAsObject(element);
@@ -234,9 +234,9 @@ TEST(JsonDecoder, ObjectComplex) {
     const char* json = "{\"num\":10,\"bool\":true,\"str\":\"Hello\",\"array\":["
                        "1,2,3],\"obj\":{\"key\":\"value\"}}";
     JwtJsonElement element = {};
-    JwtJsonParseResult result = jwtReadJsonString(&element, json, strlen(json));
+    JwtResult result = jwtReadJsonString(&element, json, strlen(json));
 
-    ASSERT_EQ(JWT_JSON_PARSE_RESULT_SUCCESS, result);
+    ASSERT_EQ(JWT_RESULT_SUCCESS, result);
     ASSERT_EQ(JWT_JSON_ELEMENT_TYPE_OBJECT, element.type);
 
     JwtJsonObject obj = jwtJsonElementAsObject(element);

@@ -1,9 +1,10 @@
 #pragma once
 
+#include <jwt/result.h>
 #include <argparse/argparse.hpp>
 
-int createToken(argparse::ArgumentParser& args);
+JwtResult createToken(argparse::ArgumentParser& args);
 
-int verifyToken(argparse::ArgumentParser& args);
+JwtResult verifyToken(argparse::ArgumentParser& args);
 
-int parseHeader(argparse::ArgumentParser& args);
+JwtResult parseHeader(argparse::ArgumentParser& args);

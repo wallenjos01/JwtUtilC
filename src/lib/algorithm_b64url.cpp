@@ -1,13 +1,14 @@
 /**
  * Josh Wallentine
  * Created 11/11/25
- * Modified 11/11/25
+ * Modified 11/12/25
  *
  * Partial implementation of algorithm.hpp
  * See also algorithm.cpp, algorithm_hmac.cpp, algorithm_sig.cpp, algorithm_enc.cpp
 */
 
 #include "algorithm.hpp"
+#include "jwt/result.h"
 
 #include <jwt/core.h>
 #include <jwt/token.h>
@@ -37,7 +38,7 @@ constexpr char B64URL_REVERSE_LOOKUP[256] = {
 
 }
 
-int32_t jwt::b64url::encode(const void *data, size_t dataLength, JwtWriter writer) {
+JwtResult jwt::b64url::encode(const void *data, size_t dataLength, JwtWriter writer) {
 
     const uint8_t* dataBytes = static_cast<const uint8_t*>(data);
 
@@ -63,9 +64,7 @@ int32_t jwt::b64url::encode(const void *data, size_t dataLength, JwtWriter write
             B64URL_LOOKUP[c1] 
         };
 
-        if(jwtWriterWriteAll(writer, chunk, 4, nullptr) != 0) {
-            return -1;
-        }
+        JWT_CHECK(jwtWriterWriteAll(writer, chunk, 4, nullptr));
     }
 
     size_t remaining = dataLength - position;
@@ -87,9 +86,7 @@ int32_t jwt::b64url::encode(const void *data, size_t dataLength, JwtWriter write
             B64URL_LOOKUP[c1]
         };
 
-        if(jwtWriterWriteAll(writer, chunk, 3, nullptr) != 0) {
-            return -1;
-        }
+        JWT_CHECK(jwtWriterWriteAll(writer, chunk, 3, nullptr));
     }
     else if(remaining == 1) {
         uint32_t encodedChunk = 
@@ -105,15 +102,13 @@ int32_t jwt::b64url::encode(const void *data, size_t dataLength, JwtWriter write
             B64URL_LOOKUP[c1]
         };
 
-        if(jwtWriterWriteAll(writer, chunk, 2, nullptr) != 0) {
-            return -1;
-        }
+        JWT_CHECK(jwtWriterWriteAll(writer, chunk, 2, nullptr));
     }
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t jwt::b64url::decode(const void *encoded, size_t encodedLength, JwtWriter writer) {
+JwtResult jwt::b64url::decode(const void *encoded, size_t encodedLength, JwtWriter writer) {
 
     const uint8_t* encodedBytes = static_cast<const uint8_t*>(encoded);
 
@@ -134,9 +129,7 @@ int32_t jwt::b64url::decode(const void *encoded, size_t encodedLength, JwtWriter
             static_cast<uint8_t>((chunk >> 8) & 0xFF), 
             static_cast<uint8_t>(chunk & 0xFF) 
         };
-        if(jwtWriterWriteAll(writer, reinterpret_cast<char*>(data), 3, nullptr) != 0) {
-            return -1;
-        }
+        JWT_CHECK(jwtWriterWriteAll(writer, reinterpret_cast<char*>(data), 3, nullptr));
     }
 
     size_t remaining = encodedLength - position;
@@ -152,9 +145,8 @@ int32_t jwt::b64url::decode(const void *encoded, size_t encodedLength, JwtWriter
             static_cast<uint8_t>((chunk >> 8) & 0xFF), 
             static_cast<uint8_t>(chunk & 0xFF) 
         };
-        if(jwtWriterWriteAll(writer, reinterpret_cast<char*>(data), 2, nullptr) != 0) {
-            return -1;
-        }
+        JWT_CHECK(jwtWriterWriteAll(writer, reinterpret_cast<char*>(data), 2, nullptr));
+
     } else if(remaining == 2) {
         uint8_t c1 = B64URL_REVERSE_LOOKUP[encodedBytes[position]];
         uint8_t c2 = B64URL_REVERSE_LOOKUP[encodedBytes[position + 1]];
@@ -163,19 +155,16 @@ int32_t jwt::b64url::decode(const void *encoded, size_t encodedLength, JwtWriter
 
         uint32_t chunk = ((c1 << 6) | c2) >> 4;
         uint8_t data = static_cast<uint8_t>(chunk & 0xFF);
-        if(jwtWriterWriteAll(writer, reinterpret_cast<char*>(&data), 1, nullptr) != 0) {
-            return -1;
-        }
+        JWT_CHECK(jwtWriterWriteAll(writer, reinterpret_cast<char*>(&data), 1, nullptr));
+
     } else if(remaining == 1) {
         uint8_t c1 = B64URL_REVERSE_LOOKUP[encodedBytes[position]];
         position += 1;
 
-        if(jwtWriterWriteAll(writer, reinterpret_cast<char*>(&c1), 1, nullptr) != 0) {
-            return -1;
-        }
+        JWT_CHECK(jwtWriterWriteAll(writer, reinterpret_cast<char*>(&c1), 1, nullptr));
     }
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
 size_t jwt::b64url::getEncodedLength(size_t dataLength) {
@@ -191,20 +180,17 @@ size_t jwt::b64url::getDataLength(size_t encodedLength) {
     return (chunks * 3) + ((rem > 0) * (rem - 1));
 }
 
-int32_t jwt::b64url::decodeNew(const void* encoded, size_t encodedLength, Span<uint8_t> *output) {
+JwtResult jwt::b64url::decodeNew(const void* encoded, size_t encodedLength, Span<uint8_t> *output) {
 
     size_t decodedLength = getDataLength(encodedLength);
     output->data = new uint8_t[decodedLength];
     output->length = decodedLength;
     output->owned = true;
 
-    int32_t result = 0;
+    JwtResult result = JWT_RESULT_SUCCESS;
 
     JwtWriter writer;
-    if(jwtWriterCreateForBuffer(&writer, output->data, output->length) != 0) {
-        result = 1;
-        goto cleanup;
-    }
+    JWT_CHECK_GOTO(jwtWriterCreateForBuffer(&writer, output->data, output->length), result, cleanup);
 
     result = decode(encoded, encodedLength, writer);
 

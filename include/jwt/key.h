@@ -96,6 +96,8 @@ enum JwtKeyOperation : uint8_t {
     JWT_KEY_OP_DERIVE_BITS = 128,
 };
 
+typedef uint8_t JwtKeyOperations;
+
 /**
  * Represents the X.509 certificate information part of a JWK
  */
@@ -169,25 +171,9 @@ typedef struct JwtKey {
      * @brief A bitset of valid operations to use this key for.
      * @see JwtKeyOperation
      */
-    uint8_t operations;
+    JwtKeyOperations operations;
 
 } JwtKey;
-
-enum JwtKeyParseResult {
-    JWT_KEY_PARSE_RESULT_SUCCESS = 0,
-    JWT_KEY_PARSE_RESULT_UNKNOWN_KEY_TYPE = -1,
-    JWT_KEY_PARSE_RESULT_UNKNOWN_KEY_USE = -2,
-    JWT_KEY_PARSE_RESULT_UNKNOWN_ALGORITHM = -3,
-    JWT_KEY_PARSE_RESULT_UNKNOWN_OPERATION = -4,
-    JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM = -5,
-    JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED = -6,
-    JWT_KEY_PARSE_RESULT_KEY_CREATE_FAILED = -7,
-    JWT_KEY_PARSE_RESULT_UNKNOWN_CURVE = -8,
-    JWT_KEY_PARSE_RESULT_UNEXPECTED_ERROR = -9,
-    JWT_KEY_PARSE_RESULT_NOT_A_LIST = -10,
-    JWT_KEY_PARSE_RESULT_NOT_AN_OBJECT = -11,
-    JWT_KET_PARSE_RESULT_DUPLICATE_ID = -12
-};
 
 /**
  * @brief Attempts to parse a JWA by name from the given string.
@@ -195,7 +181,7 @@ enum JwtKeyParseResult {
  * @param name The algorithm name to parse
  * @return 0 on success, or some error code
  */
-int32_t jwtAlgorithmParse(JwtAlgorithm* algorithm, const char* name);
+JwtResult jwtAlgorithmParse(JwtAlgorithm* algorithm, const char* name);
 
 /**
  * @brief Attempts to parse an encryption algorithm by name from the given string.
@@ -203,7 +189,7 @@ int32_t jwtAlgorithmParse(JwtAlgorithm* algorithm, const char* name);
  * @param name The algorithm name to parse
  * @return 0 on success, or some error code
  */
-int32_t jwtCryptAlgorithmParse(JwtCryptAlgorithm* algorithm, const char* name);
+JwtResult jwtCryptAlgorithmParse(JwtCryptAlgorithm* algorithm, const char* name);
 
 inline bool jwtIsEncryptionAlgorithm(JwtAlgorithm algorithm) {
     return algorithm >= JWT_ALGORITHM_RSA1_5;
@@ -215,7 +201,7 @@ inline bool jwtIsEncryptionAlgorithm(JwtAlgorithm algorithm) {
  * @param obj The object to parse
  * @return 0 on success, or some error code
  */
-JwtKeyParseResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj);
+JwtResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj);
 
 /**
  * @brief Destroys the given JWK
@@ -238,7 +224,7 @@ typedef struct JwtKeySet {
  * @param obj The object to parse
  * @return 0 on success, or some error code
  */
-JwtKeyParseResult jwtKeySetParse(JwtKeySet* keySet, JwtJsonObject* obj);
+JwtResult jwtKeySetParse(JwtKeySet* keySet, JwtJsonObject* obj);
 
 /**
  * @brief Destroys the given JWK set

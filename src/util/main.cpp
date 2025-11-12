@@ -9,6 +9,7 @@
 #include <jwt/token.h>
 
 #include "app.hpp"
+#include "jwt/result.h"
 
 
 int main(int argc, char** argv) { 
@@ -99,14 +100,21 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    JwtResult result;
+
     if(args.is_subcommand_used("create")) {
-        return createToken(args.at<argparse::ArgumentParser>("create"));
+        result = createToken(args.at<argparse::ArgumentParser>("create"));
     } else if(args.is_subcommand_used("verify")) {
-        return verifyToken(args.at<argparse::ArgumentParser>("verify"));
+        result = verifyToken(args.at<argparse::ArgumentParser>("verify"));
     } else if(args.is_subcommand_used("header")) {
-        return parseHeader(args.at<argparse::ArgumentParser>("header"));
+        result = parseHeader(args.at<argparse::ArgumentParser>("header"));
     } else {
         std::cerr << args << "\n";
+        return 1;
+    }
+    
+    if(result != JWT_RESULT_SUCCESS) {
+        std::cerr << "An error occurred! (" << result << ")";
         return 1;
     }
 

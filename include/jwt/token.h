@@ -24,7 +24,7 @@ const char* const JWT_CLAIM_JWT_ID = "jti";
  * @return 0 on success, or some error code
  * @see RFC 7519 (https://www.rfc-editor.org/rfc/rfc7519#section-6)
  */
-int32_t jwtCreateUnprotectedToken(JwtJsonObject* payload, JwtString* out);
+JwtResult jwtCreateUnprotectedToken(JwtJsonObject* payload, JwtString* out);
 
 /**
  * Creates a JSON Web Token with the given payload, signed with the given key and algorithm.
@@ -35,7 +35,7 @@ int32_t jwtCreateUnprotectedToken(JwtJsonObject* payload, JwtString* out);
  * @return 0 on success, or some error code
  * @see RFC 7519 (https://www.rfc-editor.org/rfc/rfc7519#appendix-A.1)
  */
-int32_t jwtCreateSignedToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtString* out);
+JwtResult jwtCreateSignedToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtString* out);
 
 /**
  * Creates a JSON Web Token with the given payload, encrypted with the given key and algorithms.
@@ -47,10 +47,10 @@ int32_t jwtCreateSignedToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm a
  * @return 0 on success, or some error code
  * @see RFC 7519 (https://www.rfc-editor.org/rfc/rfc7519#appendix-A.1)
  */
-int32_t jwtCreateEncryptedToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtCryptAlgorithm crypt, JwtString* out);
+JwtResult jwtCreateEncryptedToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtCryptAlgorithm crypt, JwtString* out);
 
 
-int32_t jwtReadTokenHeader(JwtString token, JwtJsonObject* out);
+JwtResult jwtReadTokenHeader(JwtString token, JwtJsonObject* out);
 
 
 typedef struct JwtParsedToken {
@@ -69,9 +69,9 @@ typedef uint8_t JwtVerifyFlags;
 
 void jwtParsedTokenDestroy(JwtParsedToken* token);
 
-int32_t jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, JwtVerifyFlags flags);
+JwtResult jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, JwtVerifyFlags flags);
 
-int32_t jwtVerifyTokenWithSet(JwtString token, JwtKey* key, JwtParsedToken* out, JwtVerifyFlags flags);
+JwtResult jwtVerifyTokenWithSet(JwtString token, JwtKey* key, JwtParsedToken* out, JwtVerifyFlags flags);
 
 
 #ifdef __cplusplus

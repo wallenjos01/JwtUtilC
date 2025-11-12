@@ -1,14 +1,15 @@
 /**
  * Josh Wallentine
  * Created 9/12/25
- * Modified 11/4/25
+ * Modified 11/12/25
  *
  * Implementation of include/jwt/stream.h
  */
 
 #include <jwt/stream.h>
 
-#include "jwt/core.h"
+#include <jwt/core.h>
+#include <jwt/result.h>
 
 #include <cstring>
 #include <fstream>
@@ -38,7 +39,7 @@ struct ListInfo {
     size_t index;
 };
 
-int32_t readFile(void* impl, char* buffer, size_t charsToRead,
+JwtResult readFile(void* impl, char* buffer, size_t charsToRead,
                  size_t* charsRead) {
 
     FileInfo* info = static_cast<FileInfo*>(impl);
@@ -48,16 +49,16 @@ int32_t readFile(void* impl, char* buffer, size_t charsToRead,
         *charsRead = info->stream.gcount();
     }
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t readBuffer(void* impl, char* buffer, size_t charsToRead,
+JwtResult readBuffer(void* impl, char* buffer, size_t charsToRead,
                    size_t* charsRead) {
 
     BufferInfo* info = static_cast<BufferInfo*>(impl);
     if (info->index >= info->bufferLength) {
         *charsRead = 0;
-        return 0;
+        return JWT_RESULT_SUCCESS;
     }
     size_t readable = info->bufferLength - info->index;
     size_t toRead = std::min(readable, charsToRead);
@@ -69,10 +70,10 @@ int32_t readBuffer(void* impl, char* buffer, size_t charsToRead,
         *charsRead = toRead;
     }
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t writeFile(void* impl, const char* buffer, size_t charsToWrite,
+JwtResult writeFile(void* impl, const char* buffer, size_t charsToWrite,
                   size_t* charsWritten) {
 
     FileInfo* info = static_cast<FileInfo*>(impl);
@@ -84,15 +85,15 @@ int32_t writeFile(void* impl, const char* buffer, size_t charsToWrite,
         *charsWritten = info->stream.gcount() - startIndex;
     }
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t writeBuffer(void* impl, const char* buffer, size_t charsToWrite,
+JwtResult writeBuffer(void* impl, const char* buffer, size_t charsToWrite,
                     size_t* charsWritten) {
 
     BufferInfo* info = static_cast<BufferInfo*>(impl);
     if (info->index >= info->bufferLength) {
-        return 0;
+        return JWT_RESULT_SUCCESS;
     }
     size_t readable = info->bufferLength - info->index;
     size_t toWrite = std::min(readable, charsToWrite);
@@ -104,7 +105,7 @@ int32_t writeBuffer(void* impl, const char* buffer, size_t charsToWrite,
         *charsWritten = toWrite;
     }
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
 void closeBuffer(void* impl) {
@@ -119,16 +120,16 @@ void closeFile(void* impl) {
 }
 
 
-int32_t writeList(void* impl, const char* buffer, size_t charsToWrite, size_t* charsWritten) {
+JwtResult writeList(void* impl, const char* buffer, size_t charsToWrite, size_t* charsWritten) {
 
     ListInfo* info = static_cast<ListInfo*>(impl);
     
     void* current = jwtListPushN(&info->list, charsToWrite);
     if(current == nullptr) {
         if(charsWritten) {
-            *charsWritten = 0;
+            *charsWritten = JWT_RESULT_SUCCESS;
         }
-        return 1;
+        return JWT_RESULT_MEMORY_ALLOC_FAILED;
     }
     memcpy(current, buffer, charsToWrite);
 
@@ -136,7 +137,7 @@ int32_t writeList(void* impl, const char* buffer, size_t charsToWrite, size_t* c
         *charsWritten = charsToWrite;
     }
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
 void closeList(void* impl) {
@@ -147,12 +148,12 @@ void closeList(void* impl) {
 
 }; // namespace
 
-int32_t jwtReaderCreateForFile(JwtReader* reader, const char* path) {
+JwtResult jwtReaderCreateForFile(JwtReader* reader, const char* path) {
 
     std::fstream stream = {};
     stream.open(path, std::ios::binary | std::ios::in);
     if (!stream.is_open()) {
-        return -1;
+        return JWT_RESULT_FILE_OPEN_FAILED;
     }
 
     FileInfo* info = new FileInfo();
@@ -161,10 +162,10 @@ int32_t jwtReaderCreateForFile(JwtReader* reader, const char* path) {
     reader->impl = info;
     reader->pfnRead = readFile;
     reader->pfnClose = closeFile;
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t jwtReaderCreateForBuffer(JwtReader* reader, const void* buffer,
+JwtResult jwtReaderCreateForBuffer(JwtReader* reader, const void* buffer,
                                  size_t length) {
     BufferInfo* info = new BufferInfo();
     info->buffer = const_cast<char*>(static_cast<const char*>(buffer));
@@ -173,15 +174,15 @@ int32_t jwtReaderCreateForBuffer(JwtReader* reader, const void* buffer,
     reader->impl = info;
     reader->pfnRead = readBuffer;
     reader->pfnClose = closeBuffer;
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t jwtWriterCreateForFile(JwtWriter* writer, const char* path) {
+JwtResult jwtWriterCreateForFile(JwtWriter* writer, const char* path) {
 
     std::fstream stream = {};
     stream.open(path, std::ios::binary | std::ios::out);
     if (!stream.is_open()) {
-        return -1;
+        return JWT_RESULT_FILE_OPEN_FAILED;
     }
 
     FileInfo* info = new FileInfo();
@@ -190,10 +191,10 @@ int32_t jwtWriterCreateForFile(JwtWriter* writer, const char* path) {
     writer->impl = info;
     writer->pfnWrite = writeFile;
     writer->pfnClose = closeFile;
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t jwtWriterCreateForBuffer(JwtWriter* writer, void* buffer,
+JwtResult jwtWriterCreateForBuffer(JwtWriter* writer, void* buffer,
                                  size_t length) {
     BufferInfo* info = new BufferInfo();
     info->buffer = static_cast<char*>(buffer);
@@ -202,15 +203,15 @@ int32_t jwtWriterCreateForBuffer(JwtWriter* writer, void* buffer,
     writer->impl = info;
     writer->pfnWrite = writeBuffer;
     writer->pfnClose = closeBuffer;
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t jwtReaderReadAll(JwtReader reader, char* buffer, size_t charsToRead,
+JwtResult jwtReaderReadAll(JwtReader reader, char* buffer, size_t charsToRead,
                          size_t* charsRead) {
     size_t totalRead = 0;
     size_t justRead;
     while (totalRead < charsToRead) {
-        int32_t result =
+        JwtResult result =
             reader.pfnRead(reader.impl, buffer, charsToRead, &justRead);
         if (result < 0) {
             if (charsRead) {
@@ -223,7 +224,7 @@ int32_t jwtReaderReadAll(JwtReader reader, char* buffer, size_t charsToRead,
             if (charsRead) {
                 *charsRead = totalRead;
             }
-            return 1;
+            return JWT_RESULT_EOF;
         }
         totalRead += justRead;
     }
@@ -231,15 +232,15 @@ int32_t jwtReaderReadAll(JwtReader reader, char* buffer, size_t charsToRead,
     if (charsRead) {
         *charsRead = totalRead;
     }
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t jwtWriterWriteAll(JwtWriter writer, const char* buffer,
+JwtResult jwtWriterWriteAll(JwtWriter writer, const char* buffer,
                           size_t charsToWrite, size_t* charsWritten) {
     size_t totalWritten = 0;
     size_t justWritten;
     while (totalWritten < charsToWrite) {
-        int32_t result =
+        JwtResult result =
             writer.pfnWrite(writer.impl, buffer, charsToWrite, &justWritten);
         if (result < 0) {
             if (charsWritten) {
@@ -252,7 +253,7 @@ int32_t jwtWriterWriteAll(JwtWriter writer, const char* buffer,
             if (charsWritten) {
                 *charsWritten = totalWritten;
             }
-            return 1;
+            return JWT_RESULT_EOF;
         }
         totalWritten += justWritten;
     }
@@ -260,14 +261,14 @@ int32_t jwtWriterWriteAll(JwtWriter writer, const char* buffer,
     if (charsWritten) {
         *charsWritten = totalWritten;
     }
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t jwtWriterCreateDynamic(JwtWriter* writer) {
+JwtResult jwtWriterCreateDynamic(JwtWriter* writer) {
     writer->impl = new ListInfo();
     writer->pfnClose = closeList;
     writer->pfnWrite = writeList;
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
 JwtList* jwtWriterExtractDynamic(JwtWriter* writer) {

@@ -1,13 +1,14 @@
 /**
  * Josh Wallentine
  * Created 11/11/25
- * Modified 11/11/25
+ * Modified 11/12/25
  *
  * Partial implementation of algorithm.hpp
  * See also algorithm.cpp, algorithm_b64url.cpp, algorithm_hmac.cpp, algorithm_enc.cpp
 */
 
 #include "algorithm.hpp"
+#include "jwt/result.h"
 #include "util.hpp"
 
 #include <jwt/key.h>
@@ -19,14 +20,17 @@
 
 namespace {
 
-int32_t setupContextForAlgorithm(EVP_PKEY_CTX* keyContext,
+JwtResult setupContextForAlgorithm(EVP_PKEY_CTX* keyContext,
                                  JwtAlgorithm algorithm) {
 
     switch (algorithm) {
     case JWT_ALGORITHM_RS256:
     case JWT_ALGORITHM_RS384:
     case JWT_ALGORITHM_RS512:
-        if(EVP_PKEY_CTX_set_rsa_padding(keyContext, RSA_PKCS1_PADDING) <= 0) return -1;
+        if(EVP_PKEY_CTX_set_rsa_padding(keyContext, RSA_PKCS1_PADDING) <= 0) {
+            ERR_print_errors_fp(stderr);
+            return JWT_RESULT_UNEXPECTED_ERROR;
+        }
         break;
     case JWT_ALGORITHM_ES256:
     case JWT_ALGORITHM_ES384:
@@ -35,13 +39,16 @@ int32_t setupContextForAlgorithm(EVP_PKEY_CTX* keyContext,
     case JWT_ALGORITHM_PS256:
     case JWT_ALGORITHM_PS384:
     case JWT_ALGORITHM_PS512:
-        if(EVP_PKEY_CTX_set_rsa_padding(keyContext, RSA_PKCS1_PSS_PADDING) <= 0) return -1;
+        if(EVP_PKEY_CTX_set_rsa_padding(keyContext, RSA_PKCS1_PSS_PADDING) <= 0) {
+            ERR_print_errors_fp(stderr);
+            return JWT_RESULT_UNEXPECTED_ERROR;
+        }
         break;
     default:
-        return -1; // Unsupported algorithm for PKEY
+        return JWT_RESULT_INVALID_ALGORITHM;
     }
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
 }
@@ -58,24 +65,26 @@ typedef struct ECDSA_SIG_st {
 }
 
 
-int32_t jwt::sig::generate(Span<uint8_t> input, JwtKey* key,
+JwtResult jwt::sig::generate(Span<uint8_t> input, JwtKey* key,
                                JwtAlgorithm algorithm, Span<uint8_t> output,
                                size_t* sigLength) {
  
     if (input.length == 0 || input.data == nullptr) {
-        return 0;
+        return JWT_RESULT_SUCCESS;
     }
-    if (key->keyData == nullptr || key->type == JWT_KEY_TYPE_OCTET_SEQUENCE) {
-        return -1;
+    if (key->type == JWT_KEY_TYPE_OCTET_SEQUENCE) {
+        return JWT_RESULT_INVALID_KEY_TYPE;
+    }
+    if (key->keyData == nullptr) {
+        return JWT_RESULT_INVALID_KEY_DATA;
     }
 
     size_t requiredLen = 0;
-    int32_t result = 0;
+    JwtResult result = JWT_RESULT_SUCCESS;
 
     const char* digest = getDigestForAlgorithm(algorithm);
     if (digest == nullptr) {
-        std::cerr << "Unable to find digest\n";
-        return -2;
+        return JWT_RESULT_INVALID_ALGORITHM;
     }
 
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
@@ -85,26 +94,25 @@ int32_t jwt::sig::generate(Span<uint8_t> input, JwtKey* key,
     EVP_PKEY_CTX* pctx = nullptr;
 
     if(EVP_DigestSignInit(ctx, &pctx, md, nullptr, pkey) <= 0) {
+        JWT_REPORT_ERROR("EVP_DigestSignInit() failed");
         ERR_print_errors_fp(stderr);
-        result = -3;
+        result = JWT_RESULT_UNEXPECTED_ERROR;
         goto cleanup;
     }
 
-    if(setupContextForAlgorithm(pctx, algorithm) != 0) {
-        ERR_print_errors_fp(stderr);
-        result = -4;
-        goto cleanup;
-    }
+    JWT_CHECK_GOTO(setupContextForAlgorithm(pctx, algorithm), result, cleanup);
 
     if(EVP_DigestSignUpdate(ctx, input.data, input.length) <= 0) {
+        JWT_REPORT_ERROR("EVP_DigestSignUpdate() failed");
         ERR_print_errors_fp(stderr);
-        result = -5;
+        result = JWT_RESULT_UNEXPECTED_ERROR;
         goto cleanup;
     }
 
     if(EVP_DigestSignFinal(ctx, nullptr, &requiredLen) <= 0) {
+        JWT_REPORT_ERROR("EVP_DigestSignFinal() failed");
         ERR_print_errors_fp(stderr);
-        result = -6;
+        result = JWT_RESULT_UNEXPECTED_ERROR;
         goto cleanup;
     }
 
@@ -115,14 +123,14 @@ int32_t jwt::sig::generate(Span<uint8_t> input, JwtKey* key,
     }
 
     if(output.length < requiredLen) {
-        ERR_print_errors_fp(stderr);
-        result = -7;
+        result = JWT_RESULT_SHORT_BUFFER;
         goto cleanup;
     }
 
     if(EVP_DigestSignFinal(ctx, output.data, &requiredLen) <= 0) {
+        JWT_REPORT_ERROR("EVP_DigestSignFinal() failed");
         ERR_print_errors_fp(stderr);
-        result = -8;
+        result = JWT_RESULT_UNEXPECTED_ERROR;
         goto cleanup;
     }
 
@@ -151,21 +159,23 @@ cleanup:
 
 }
 
-int32_t jwt::sig::validate(Span<uint8_t> input, Span<uint8_t> signature, 
+JwtResult jwt::sig::validate(Span<uint8_t> input, Span<uint8_t> signature, 
                           JwtKey* key, JwtAlgorithm algorithm) {
 
     if (input.length == 0 || input.data == nullptr) {
-        return 0;
+        return JWT_RESULT_SUCCESS;
     }
-    if (key->keyData == nullptr || key->type == JWT_KEY_TYPE_OCTET_SEQUENCE) {
-        return -1;
+    if (key->type == JWT_KEY_TYPE_OCTET_SEQUENCE) {
+        return JWT_RESULT_INVALID_KEY_TYPE;
+    }
+    if (key->keyData == nullptr) {
+        return JWT_RESULT_INVALID_KEY_DATA;
     }
 
-    int32_t result = 0;
+    JwtResult result = JWT_RESULT_SUCCESS;
     const char* digest = getDigestForAlgorithm(algorithm);
     if (digest == nullptr) {
-        std::cerr << "Unable to find digest\n";
-        return -2;
+        return JWT_RESULT_INVALID_ALGORITHM;
     }
 
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
@@ -175,20 +185,22 @@ int32_t jwt::sig::validate(Span<uint8_t> input, Span<uint8_t> signature,
     EVP_PKEY_CTX* pctx = nullptr;
 
     if(EVP_DigestVerifyInit(ctx, &pctx, md, nullptr, pkey) <= 0) {
+        JWT_REPORT_ERROR("EVP_DigestVerifyInit() failed");
         ERR_print_errors_fp(stderr);
-        result = -3;
+        result = JWT_RESULT_UNEXPECTED_ERROR;
         goto cleanup;
     }
 
     if(setupContextForAlgorithm(pctx, algorithm) != 0) {
+        JWT_REPORT_ERROR("EVP_DigestVerifyInit() failed");
         ERR_print_errors_fp(stderr);
-        result = -4;
+        result = JWT_RESULT_UNEXPECTED_ERROR;
         goto cleanup;
     }
 
     if(EVP_DigestVerifyUpdate(ctx, input.data, input.length) <= 0) {
         ERR_print_errors_fp(stderr);
-        result = -5;
+        result = JWT_RESULT_UNEXPECTED_ERROR;
         goto cleanup;
     }
 
@@ -206,7 +218,7 @@ int32_t jwt::sig::validate(Span<uint8_t> input, Span<uint8_t> signature,
 
         size_t sigLength = i2d_ECDSA_SIG(&sig, nullptr);
         if(sigLength > 512) {
-            result = -6;
+            result = JWT_RESULT_UNEXPECTED_ERROR;
             goto cleanup;
         }
         i2d_ECDSA_SIG(&sig, &realSigPtr);
@@ -216,14 +228,14 @@ int32_t jwt::sig::validate(Span<uint8_t> input, Span<uint8_t> signature,
 
         if(EVP_DigestVerifyFinal(ctx, realSig, sigLength) <= 0) {
             ERR_print_errors_fp(stderr);
-            result = 1;
+            result = JWT_RESULT_VERIFICATION_FAILED;
         }
 
     } else {    
 
         if(EVP_DigestVerifyFinal(ctx, signature.data, signature.length) <= 0) {
             ERR_print_errors_fp(stderr);
-            result = 1;
+            result = JWT_RESULT_VERIFICATION_FAILED;
         }
     }
 

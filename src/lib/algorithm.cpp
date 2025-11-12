@@ -1,7 +1,7 @@
 /**
  * Josh Wallentine
  * Created 9/30/25
- * Modified 11/11/25
+ * Modified 11/12/25
  *
  * Partial implementation of algorithm.hpp, key.h
  * See also algorithm_b64url.cpp, algorithm_hmac.cpp, algorithm_sig.cpp, algorithm_enc.cpp
@@ -9,11 +9,12 @@
 
 #include "algorithm.hpp"
 #include "hash.hpp"
+#include "jwt/result.h"
 
 #include <jwt/key.h>
 
 
-int32_t jwtAlgorithmParse(JwtAlgorithm* alg, const char* str) {
+JwtResult jwtAlgorithmParse(JwtAlgorithm* alg, const char* str) {
 
     size_t hash = hashString(str, strlen(str));
     switch (hash) {
@@ -108,13 +109,13 @@ int32_t jwtAlgorithmParse(JwtAlgorithm* alg, const char* str) {
         *alg = JWT_ALGORITHM_PBES_HS512_A256KW;
         break;
     default:
-        return -1;
+        return JWT_RESULT_UNKNOWN_ALGORITHM;
     }
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
-int32_t jwtCryptAlgorithmParse(JwtCryptAlgorithm* alg, const char* str) {
+JwtResult jwtCryptAlgorithmParse(JwtCryptAlgorithm* alg, const char* str) {
 
     size_t hash = hashString(str, strlen(str));
     switch (hash) {
@@ -137,9 +138,9 @@ int32_t jwtCryptAlgorithmParse(JwtCryptAlgorithm* alg, const char* str) {
         *alg = JWT_CRYPT_ALGORITHM_A256GCM;
         break;
     default:
-        return -1;
+        return JWT_RESULT_UNKNOWN_CRYPT_ALGORITHM;
     }
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
 const char* jwt::getAlgorithmName(JwtAlgorithm algorithm) {

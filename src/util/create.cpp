@@ -5,42 +5,38 @@
 #include <jwt/json.h>
 #include <jwt/stream.h>
 #include <jwt/token.h>
+#include <jwt/result.h>
 
-int createToken(argparse::ArgumentParser &args) {
+JwtResult createToken(argparse::ArgumentParser &args) {
 
     JwtAlgorithm algorithm = JWT_ALGORITHM_UNKNOWN;
-    if(jwtAlgorithmParse(&algorithm, args.get("algorithm").c_str()) != 0) {
-        std::cerr << "Invalid algorithm!\n";
-        return 1;
-    }
+    JWT_CHECK(jwtAlgorithmParse(&algorithm, args.get("algorithm").c_str()));
 
     JwtKey key = {};
     if(algorithm != JWT_ALGORITHM_NONE) {
         JwtReader keyReader = {};
-        if(jwtReaderCreateForFile(&keyReader, args.get("key").c_str()) != 0) {
-            std::cerr << "Unable to open key file at!\n";
-            return 1;
-        }
+        JWT_CHECK(jwtReaderCreateForFile(&keyReader, args.get("key").c_str()));
         
         JwtJsonElement keyJson = {};
-        JwtJsonParseResult result = jwtReadJsonReader(&keyJson, keyReader);
-        if(result != JWT_JSON_PARSE_RESULT_SUCCESS) {
+        JwtResult result = jwtReadJsonReader(&keyJson, keyReader);
+        if(result != JWT_RESULT_SUCCESS) {
             jwtReaderClose(&keyReader);
-            std::cerr << "Unable to read key file! (" << result << ")\n";
-            return 1;
+            std::cerr << "Unable to read key file!\n";
+            return result;
         }
         jwtReaderClose(&keyReader);
 
         if(keyJson.type != JWT_JSON_ELEMENT_TYPE_OBJECT) {
             std::cerr << "Key is not a JSON object!\n";
             jwtJsonElementDestroy(&keyJson);
-            return 1;
+            return JWT_RESULT_NOT_AN_OBJECT;
         }
 
-        if(jwtKeyParse(&key, &keyJson.object) != JWT_KEY_PARSE_RESULT_SUCCESS) {
+        result = jwtKeyParse(&key, &keyJson.object);
+        if(result != JWT_RESULT_SUCCESS) {
             std::cerr << "Key is not a valid JWK!\n";
             jwtJsonElementDestroy(&keyJson);
-            return 1;
+            return result;
         }
         jwtJsonElementDestroy(&keyJson);
     }
@@ -49,16 +45,17 @@ int createToken(argparse::ArgumentParser &args) {
     if(args.is_used("--payload")) {
         std::string payloadText = args.get("--payload");
         JwtJsonElement parsed = {};
-        if(jwtReadJsonString(&parsed, payloadText.c_str(), payloadText.length()) != JWT_JSON_PARSE_RESULT_SUCCESS) {
+        JwtResult res = jwtReadJsonString(&parsed, payloadText.c_str(), payloadText.length());
+        if(res != JWT_RESULT_SUCCESS) {
             std::cerr << "Payload is not valid JSON!\n";
             jwtKeyDestroy(&key);
-            return 1;
+            return res;
         }
         if(parsed.type != JWT_JSON_ELEMENT_TYPE_OBJECT) {
             std::cerr << "Payload is not a JSON object!\n";
             jwtJsonElementDestroy(&parsed);
             jwtKeyDestroy(&key);
-            return 1;
+            return JWT_RESULT_NOT_AN_OBJECT;
         }
         payload = parsed.object;
     } else {
@@ -100,35 +97,36 @@ int createToken(argparse::ArgumentParser &args) {
 
     JwtString token;
     if(algorithm == JWT_ALGORITHM_NONE) {
-        int32_t result = jwtCreateUnprotectedToken(&payload, &token);
-        if(result != 0) {
+        JwtResult result = jwtCreateUnprotectedToken(&payload, &token);
+        if(result != JWT_RESULT_SUCCESS) {
             std::cerr << "Token creation failed!" << result << "\n";
             jwtJsonObjectDestroy(&payload);
-            return 1;
+            return result;
         }
     } else if(jwtIsEncryptionAlgorithm(algorithm)) {
 
         JwtCryptAlgorithm crypt = JWT_CRYPT_ALGORITHM_UNKNOWN;
-        if(jwtCryptAlgorithmParse(&crypt, args.get("--enc").c_str()) != 0) {
+        JwtResult result = jwtCryptAlgorithmParse(&crypt, args.get("--enc").c_str());
+        if(result != JWT_RESULT_SUCCESS) {
             std::cerr << "Invalid or missing encryption algorithm! (--enc)\n";
-            return 1;
+            return result;
         }
 
-        int32_t result = jwtCreateEncryptedToken(&payload, &key, algorithm, crypt, &token);
+        result = jwtCreateEncryptedToken(&payload, &key, algorithm, crypt, &token);
         if(result != 0) {
             std::cerr << "Token creation failed! " << result << "\n";
             jwtJsonObjectDestroy(&payload);
             jwtKeyDestroy(&key);
-            return 1;
+            return result;
         }
 
     } else {
-        int32_t result = jwtCreateSignedToken(&payload, &key, algorithm, &token);
+        JwtResult result = jwtCreateSignedToken(&payload, &key, algorithm, &token);
         if(result != 0) {
             std::cerr << "Token creation failed!" << result << "\n";
             jwtJsonObjectDestroy(&payload);
             jwtKeyDestroy(&key);
-            return 1;
+            return result;
         }
     }
 
@@ -137,5 +135,5 @@ int createToken(argparse::ArgumentParser &args) {
     jwtJsonObjectDestroy(&payload);
     jwtKeyDestroy(&key);
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }

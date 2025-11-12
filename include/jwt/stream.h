@@ -2,6 +2,7 @@
 #define JWT_STREAM_H
 
 #include "jwt/core.h"
+#include "jwt/result.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,7 +35,7 @@ typedef struct JwtReader {
      * characters actually read when this call returns.
      * @return 0 on success, -1 on error.
      */
-    int32_t (*pfnRead)(void* impl, char* buffer, size_t charsToRead,
+    JwtResult (*pfnRead)(void* impl, char* buffer, size_t charsToRead,
                        size_t* charsRead);
 } JwtReader;
 
@@ -44,7 +45,7 @@ typedef struct JwtReader {
  * @param path The path of the file to read from.
  * @return 0 on success, -1 on error.
  */
-int32_t jwtReaderCreateForFile(JwtReader* reader, const char* path);
+JwtResult jwtReaderCreateForFile(JwtReader* reader, const char* path);
 
 /**
  * @brief Creates a reader which reads from a buffer.
@@ -53,7 +54,7 @@ int32_t jwtReaderCreateForFile(JwtReader* reader, const char* path);
  * @param length The length of the buffer.
  * @return 0 on success, -1 on error.
  */
-int32_t jwtReaderCreateForBuffer(JwtReader* reader, const void* buffer,
+JwtResult jwtReaderCreateForBuffer(JwtReader* reader, const void* buffer,
                                  size_t length);
 
 /**
@@ -76,7 +77,7 @@ inline void jwtReaderClose(JwtReader* reader) {
  * actually read will be stored.
  * @return 0 on success, -1 on error.
  */
-inline int32_t jwtReaderRead(JwtReader reader, char* buffer, size_t charsToRead,
+inline JwtResult jwtReaderRead(JwtReader reader, char* buffer, size_t charsToRead,
                              size_t* charsRead) {
     return reader.pfnRead(reader.impl, buffer, charsToRead, charsRead);
 }
@@ -92,7 +93,7 @@ inline int32_t jwtReaderRead(JwtReader reader, char* buffer, size_t charsToRead,
  * actually read will be stored.
  * @return 0 on success, -1 on error or EOF.
  */
-int32_t jwtReaderReadAll(JwtReader reader, char* buffer, size_t charsToRead,
+JwtResult jwtReaderReadAll(JwtReader reader, char* buffer, size_t charsToRead,
                          size_t* charsRead);
 
 /**
@@ -120,7 +121,7 @@ typedef struct JwtWriter {
      * characters actually written when this call returns.
      * @return 0 on success, -1 on error.
      */
-    int32_t (*pfnWrite)(void* impl, const char* buffer, size_t charsToWrite,
+    JwtResult (*pfnWrite)(void* impl, const char* buffer, size_t charsToWrite,
                         size_t* charsWritten);
 } JwtWriter;
 
@@ -130,7 +131,7 @@ typedef struct JwtWriter {
  * @param path The path of the file to write from.
  * @return 0 on success, -1 on error.
  */
-int32_t jwtWriterCreateForFile(JwtWriter* writer, const char* path);
+JwtResult jwtWriterCreateForFile(JwtWriter* writer, const char* path);
 
 /**
  * @brief Creates a writer which writes to a buffer.
@@ -139,7 +140,7 @@ int32_t jwtWriterCreateForFile(JwtWriter* writer, const char* path);
  * @param length The length of the buffer.
  * @return 0 on success, -1 on error.
  */
-int32_t jwtWriterCreateForBuffer(JwtWriter* writer, void* buffer,
+JwtResult jwtWriterCreateForBuffer(JwtWriter* writer, void* buffer,
                                  size_t length);
 
 
@@ -148,7 +149,7 @@ int32_t jwtWriterCreateForBuffer(JwtWriter* writer, void* buffer,
  * @param writer The writer struct to initialize as a dynamic writer.
  * @return 0 on success, -1 on error.
  */
-int32_t jwtWriterCreateDynamic(JwtWriter* writer);
+JwtResult jwtWriterCreateDynamic(JwtWriter* writer);
 
 /**
  * @brief Gets the dynamic array backing a dynamic writer
@@ -178,7 +179,7 @@ inline void jwtWriterClose(JwtWriter* writer) {
  * actually read will be stored.
  * @return 0 on success, -1 on error.
  */
-inline int32_t jwtWriterWrite(JwtWriter writer, const char* buffer,
+inline JwtResult jwtWriterWrite(JwtWriter writer, const char* buffer,
                               size_t charsToWrite, size_t* charsWritten) {
     return writer.pfnWrite(writer.impl, buffer, charsToWrite, charsWritten);
 }
@@ -192,7 +193,7 @@ inline int32_t jwtWriterWrite(JwtWriter writer, const char* buffer,
  * actually read will be stored.
  * @return 0 on success, -1 on error or end of stream.
  */
-int32_t jwtWriterWriteAll(JwtWriter reader, const char* buffer,
+JwtResult jwtWriterWriteAll(JwtWriter reader, const char* buffer,
                           size_t charsToWrite, size_t* charsWritten);
 
 #ifdef __cplusplus

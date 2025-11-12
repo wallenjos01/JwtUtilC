@@ -17,48 +17,49 @@
 #include "algorithm.hpp"
 #include "hash.hpp"
 #include "key.hpp"
+#include "jwt/result.h"
 #include "util.hpp"
 
 namespace {
 
-int32_t parseKeyType(JwtKeyType* type, JwtString str) {
+JwtResult parseKeyType(JwtKeyType* type, JwtString str) {
 
     size_t hash = hashString(str.data, str.length);
     switch (hash) {
     case hashCString("EC"):
         *type = JWT_KEY_TYPE_ELLIPTIC_CURVE;
-        return 0;
+        return JWT_RESULT_SUCCESS;
     case hashCString("RSA"):
         *type = JWT_KEY_TYPE_RSA;
-        return 0;
+        return JWT_RESULT_SUCCESS;
     case hashCString("oct"):
         *type = JWT_KEY_TYPE_OCTET_SEQUENCE;
-        return 0;
+        return JWT_RESULT_SUCCESS;
     default:
-        return -1;
+        return JWT_RESULT_UNKNOWN_KEY_TYPE;
     }
 }
 
-int32_t parseKeyUse(JwtKeyUse* use, JwtString str) {
+JwtResult parseKeyUse(JwtKeyUse* use, JwtString str) {
     size_t hash = hashString(str.data, str.length);
     switch (hash) {
     case hashCString("sig"):
         *use = JWT_KEY_USE_SIGNING;
-        return 0;
+        return JWT_RESULT_SUCCESS;
     case hashCString("enc"):
         *use = JWT_KEY_USE_ENCRYPTION;
-        return 0;
+        return JWT_RESULT_SUCCESS;
     default:
-        return -1;
+        return JWT_RESULT_UNKNOWN_KEY_USE;
     }
 }
 
-int32_t parseKeyOps(uint8_t* bitset, JwtJsonArray array) {
+JwtResult parseKeyOps(uint8_t* bitset, JwtJsonArray array) {
 
     for (auto i = 0; i < array.size; i++) {
         JwtJsonElement element = jwtJsonArrayGet(&array, i);
         if (element.type != JWT_JSON_ELEMENT_TYPE_STRING) {
-            return -1;
+            return JWT_RESULT_UNKNOWN_KEY_OPERATION;
         }
 
         JwtString str = element.string;
@@ -89,38 +90,38 @@ int32_t parseKeyOps(uint8_t* bitset, JwtJsonArray array) {
             *bitset |= JWT_KEY_OP_DERIVE_BITS;
             break;
         default:
-            return -2;
+            return JWT_RESULT_UNKNOWN_KEY_OPERATION;
         }
     }
 
-    return 0;
+    return JWT_RESULT_SUCCESS;
 }
 
 } // namespace
 
-JwtKeyParseResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj) {
+JwtResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj) {
 
     JwtString kty = jwtJsonObjectGetString(obj, "kty");
     if (kty.data == nullptr || parseKeyType(&key->type, kty) != 0) {
-        return JWT_KEY_PARSE_RESULT_UNKNOWN_KEY_TYPE;
+        return JWT_RESULT_UNKNOWN_KEY_TYPE;
     }
 
     JwtString use = jwtJsonObjectGetString(obj, "use");
     key->use = JWT_KEY_USE_UNKNOWN;
-    if (use.data && parseKeyUse(&key->use, use) != 0) {
-        return JWT_KEY_PARSE_RESULT_UNKNOWN_KEY_USE;
+    if (use.data) {
+        JWT_CHECK(parseKeyUse(&key->use, use));
     }
 
     JwtJsonArray keyOps = jwtJsonObjectGetArray(obj, "key_ops");
     key->operations = 0;
-    if (keyOps.head && parseKeyOps(&key->operations, keyOps) != 0) {
-        return JWT_KEY_PARSE_RESULT_UNKNOWN_OPERATION;
+    if (keyOps.head) {
+        JWT_CHECK(parseKeyOps(&key->operations, keyOps));
     }
 
     JwtString alg = jwtJsonObjectGetString(obj, "alg");
     key->algorithm = JWT_ALGORITHM_UNKNOWN;
-    if (alg.data && jwtAlgorithmParse(&key->algorithm, alg.data) != 0) {
-        return JWT_KEY_PARSE_RESULT_UNKNOWN_ALGORITHM;
+    if (alg.data) {
+        JWT_CHECK(jwtAlgorithmParse(&key->algorithm, alg.data));
     }
 
     switch (key->type) {
@@ -132,7 +133,7 @@ JwtKeyParseResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj) {
         return jwt::parseOctKey(key, obj);
     }
 
-    return JWT_KEY_PARSE_RESULT_SUCCESS;
+    return JWT_RESULT_SUCCESS;
 }
 
 void jwtKeyDestroy(JwtKey* key) {
@@ -148,44 +149,43 @@ void jwtKeyDestroy(JwtKey* key) {
     }
 }
 
-JwtKeyParseResult jwt::parseOctKey(JwtKey* key, JwtJsonObject* obj) {
+JwtResult jwt::parseOctKey(JwtKey* key, JwtJsonObject* obj) {
 
     JwtString kB64 = jwtJsonObjectGetString(obj, "k"); // Key data
     if (kB64.data == nullptr) {
-        return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
+        return JWT_RESULT_MISSING_REQUIRED_KEY_PARAM;
     }
 
     Span<uint8_t>* k = new Span<uint8_t>();
     key->keyData = k;
-    CHECK(jwt::b64url::decodeNew(kB64.data, kB64.length, k),
-          JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
+    JWT_CHECK(jwt::b64url::decodeNew(kB64.data, kB64.length, k));
 
-    return JWT_KEY_PARSE_RESULT_SUCCESS;
+    return JWT_RESULT_SUCCESS;
 }
 
 
 
-JwtKeyParseResult jwtKeySetParse(JwtKeySet* keySet, JwtJsonObject* obj) {
+JwtResult jwtKeySetParse(JwtKeySet* keySet, JwtJsonObject* obj) {
 
     JwtJsonElement encodedKeys = jwtJsonObjectGet(obj, "keys");
     if(encodedKeys.type != JWT_JSON_ELEMENT_TYPE_ARRAY) {
-        return JWT_KEY_PARSE_RESULT_NOT_A_LIST;
+        return JWT_RESULT_NOT_A_LIST;
     }
     if(encodedKeys.array.size == 0) {
         keySet->keys = nullptr;
         keySet->count = 0;
     }
 
-    JwtKeyParseResult result = JWT_KEY_PARSE_RESULT_SUCCESS;
+    JwtResult result = JWT_RESULT_SUCCESS;
     JwtKey* keys = new JwtKey[encodedKeys.array.size];
 
     for(auto i = 0 ; i < encodedKeys.array.size ; i++) {
         JwtJsonElement obj = jwtJsonArrayGet(&encodedKeys.array, i);
         if(obj.type != JWT_JSON_ELEMENT_TYPE_OBJECT) {
-            return JWT_KEY_PARSE_RESULT_NOT_AN_OBJECT;
+            return JWT_RESULT_NOT_AN_OBJECT;
         }
         result = jwtKeyParse(&keys[i], &obj.object);
-        if(result != JWT_KEY_PARSE_RESULT_SUCCESS) {
+        if(result != JWT_RESULT_SUCCESS) {
             goto error;
         }
 
@@ -196,7 +196,7 @@ JwtKeyParseResult jwtKeySetParse(JwtKeySet* keySet, JwtJsonObject* obj) {
                     && other->keyId.length == keys[i].keyId.length 
                     && memcmp(other->keyId.data, keys[i].keyId.data, keys[i].keyId.length) == 0) {
 
-                    result = JWT_KET_PARSE_RESULT_DUPLICATE_ID;
+                    result = JWT_RESULT_DUPLICATE_KEY_ID;
                     goto error;
                 }
             }
@@ -205,7 +205,7 @@ JwtKeyParseResult jwtKeySetParse(JwtKeySet* keySet, JwtJsonObject* obj) {
 
     keySet->keys = keys;
     keySet->count = encodedKeys.array.size;
-    return JWT_KEY_PARSE_RESULT_SUCCESS;
+    return JWT_RESULT_SUCCESS;
 
 error:
 

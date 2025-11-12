@@ -12,6 +12,7 @@
 
 #include "algorithm.hpp"
 #include "jwt/core.h"
+#include "jwt/result.h"
 #include "key.hpp"
 #include "util.hpp"
 
@@ -62,22 +63,22 @@ struct RsaFactors {
         return allocation[index + (numPrimes * 2)];
     }
 
-    int32_t decode(JwtString b64, size_t absoluteIndex) {
+    JwtResult decode(JwtString b64, size_t absoluteIndex) {
         Span<uint8_t> s = {};
-        CHECK(jwt::b64url::decodeNew(b64.data, b64.length, &s), -1);
+        JWT_CHECK(jwt::b64url::decodeNew(b64.data, b64.length, &s));
         allocation[absoluteIndex] = BN_bin2bn(s.data, s.length, nullptr);
-        return 0;
+        return JWT_RESULT_SUCCESS;
     }
 
-    int32_t decodePrime(JwtString b64, size_t index) {
+    JwtResult decodePrime(JwtString b64, size_t index) {
         return decode(b64, index);
     }
 
-    int32_t decodeExponent(JwtString b64, size_t index) {
+    JwtResult decodeExponent(JwtString b64, size_t index) {
         return decode(b64, index + numPrimes);
     }
 
-    int32_t decodeCoefficient(JwtString b64, size_t index) {
+    JwtResult decodeCoefficient(JwtString b64, size_t index) {
         return decode(b64, index + (2 * numPrimes));
     }
 
@@ -92,7 +93,7 @@ struct RsaFactors {
 
 } // namespace
 
-JwtKeyParseResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject* obj) {
+JwtResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject* obj) {
 
     // TODO: Pad these numbers when converting from Base64
     JwtString nB64 = jwtJsonObjectGetString(obj, "n"); // Modulus
@@ -100,7 +101,7 @@ JwtKeyParseResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject* obj) {
 
     // Required params
     if (nB64.data == nullptr || eB64.data == nullptr) {
-        return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
+        return JWT_RESULT_MISSING_REQUIRED_KEY_PARAM;
     }
 
     JwtString dB64 = jwtJsonObjectGetString(obj, "d"); // Private Exponent
@@ -110,7 +111,7 @@ JwtKeyParseResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject* obj) {
 
     // If one is present, both must be
     if ((pB64.data == nullptr) != (qB64.data == nullptr)) {
-        return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
+        return JWT_RESULT_MISSING_REQUIRED_KEY_PARAM;
     }
 
     JwtString dpB64 =
@@ -125,35 +126,30 @@ JwtKeyParseResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject* obj) {
 
     JwtJsonArray oth = jwtJsonObjectGetArray(obj, "oth");
     if (numPrimes == 0 && oth.head != nullptr) {
-        return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
+        return JWT_RESULT_MISSING_REQUIRED_KEY_PARAM;
     }
 
     // If any prime factors are present, then this is a private key and d must
     // be present
     if (numPrimes > 0 && dB64.data == nullptr) {
-        return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
+        return JWT_RESULT_MISSING_REQUIRED_KEY_PARAM;
     }
 
     RsaFactors factors = RsaFactors(numPrimes);
     if (numPrimes > 0) {
 
-        CHECK(factors.decodePrime(pB64, 0),
-              JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED)
-        CHECK(factors.decodePrime(qB64, 1),
-              JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED)
+        JWT_CHECK(factors.decodePrime(pB64, 0))
+        JWT_CHECK(factors.decodePrime(qB64, 1))
 
         if (dpB64.data) {
-            CHECK(factors.decodeExponent(dpB64, 0),
-                  JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED)
+            JWT_CHECK(factors.decodeExponent(dpB64, 0))
         }
         if (dqB64.data) {
-            CHECK(factors.decodeExponent(dqB64, 1),
-                  JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED)
+            JWT_CHECK(factors.decodeExponent(dqB64, 1))
         }
 
         if (qiB64.data) {
-            CHECK(factors.decodeCoefficient(qiB64, 1),
-                  JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
+            JWT_CHECK(factors.decodeCoefficient(qiB64, 1));
         }
 
         for (auto i = 0; i < oth.size; i++) {
@@ -173,29 +169,23 @@ JwtKeyParseResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject* obj) {
             if (orB64.data == nullptr || odB64.data == nullptr ||
                 otB64.data == nullptr) {
 
-                return JWT_KEY_PARSE_RESULT_MISSING_REQURIED_PARAM;
+                return JWT_RESULT_MISSING_REQUIRED_KEY_PARAM;
             }
 
-            CHECK(factors.decodePrime(orB64, index),
-                  JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
-            CHECK(factors.decodeExponent(odB64, index),
-                  JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
-            CHECK(factors.decodeCoefficient(otB64, index),
-                  JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
+            JWT_CHECK(factors.decodePrime(orB64, index));
+            JWT_CHECK(factors.decodeExponent(odB64, index));
+            JWT_CHECK(factors.decodeCoefficient(otB64, index));
         }
     }
 
     Span<uint8_t> nd = {};
     Span<uint8_t> ed = {};
     Span<uint8_t> dd = {};
-    CHECK(jwt::b64url::decodeNew(nB64.data, nB64.length, &nd),
-          JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
-    CHECK(jwt::b64url::decodeNew(eB64.data, eB64.length, &ed),
-          JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
+    JWT_CHECK(jwt::b64url::decodeNew(nB64.data, nB64.length, &nd));
+    JWT_CHECK(jwt::b64url::decodeNew(eB64.data, eB64.length, &ed));
 
     if (dB64.data) {
-        CHECK(jwt::b64url::decodeNew(dB64.data, dB64.length, &dd),
-              JWT_KEY_PARSE_RESULT_BASE64_DECODE_FAILED);
+        JWT_CHECK(jwt::b64url::decodeNew(dB64.data, dB64.length, &dd));
     }
 
     BIGNUM* n = BN_bin2bn(nd.data, nd.length, nullptr);
@@ -245,16 +235,16 @@ JwtKeyParseResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject* obj) {
 
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_name(nullptr, "RSA", nullptr);
     if (ctx == nullptr) {
-        return JWT_KEY_PARSE_RESULT_UNEXPECTED_ERROR;
+        return JWT_RESULT_UNEXPECTED_ERROR;
     }
 
-    JwtKeyParseResult result = JWT_KEY_PARSE_RESULT_SUCCESS;
+    JwtResult result = JWT_RESULT_SUCCESS;
 
     EVP_PKEY_fromdata_init(ctx);
     EVP_PKEY** pkey = reinterpret_cast<EVP_PKEY**>(&key->keyData);
     if (EVP_PKEY_fromdata(ctx, pkey, selection, params) != 1) {
         ERR_print_errors_fp(stderr);
-        result = JWT_KEY_PARSE_RESULT_KEY_CREATE_FAILED;
+        result = JWT_RESULT_KEY_CREATE_FAILED;
     }
 
     OSSL_PARAM_free(params);
