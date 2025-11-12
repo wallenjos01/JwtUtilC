@@ -1,7 +1,7 @@
 /**
  * Josh Wallentine
  * Created 10/32/25
- * Modified 11/11/25
+ * Modified 11/12/25
  *
  * Implementation of token.h
  */
@@ -415,7 +415,7 @@ JwtResult jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, JwtV
             JWT_CHECK(jwt::enc::decryptCek(&out->header, encryptedKey, key, out->algorithm, {}, &outputLength));
             
             keyData = Span<uint8_t>(new uint8_t[outputLength], outputLength);
-            JWT_CHECK(jwt::enc::decryptCek(&out->header, encryptedKey, key, out->algorithm, keyData, &outputLength));
+            JWT_CHECK(jwt::enc::decryptCek(&out->header, encryptedKey, key, out->algorithm, keyData, &keyData.length));
         }
 
         Span<uint8_t> iv = {};

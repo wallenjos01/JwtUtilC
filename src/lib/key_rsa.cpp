@@ -1,7 +1,7 @@
 /**
  * Josh Wallentine
  * Created 10/3/25
- * Modified 10/4/25
+ * Modified 11/12/25
  *
  * Partial implementation of key.hpp
  * See also key.cpp, key_ec.cpp

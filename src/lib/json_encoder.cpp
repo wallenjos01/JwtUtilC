@@ -7,9 +7,7 @@
  * See also json_decoder.cpp and json.cpp
  */
 
-#include "jwt/result.h"
-#include "util.hpp"
-
+#include <jwt/result.h>
 #include <jwt/core.h>
 #include <jwt/stream.h>
 #include <jwt/json.h>
@@ -119,6 +117,7 @@ JwtResult jwtWriteJsonString(JwtJsonElement* element, JwtString* string) {
     JWT_CHECK(jwtWriteJsonWriter(element, writer));
 
     JwtList* list = jwtWriterExtractDynamic(&writer);
+    *static_cast<uint8_t*>(jwtListPush(list)) = 0;
     string->length = list->size;
     string->data = static_cast<char*>(jwtListReclaim(list));
  
@@ -157,6 +156,7 @@ JwtResult jwtWriteJsonObjectString(JwtJsonObject* object, JwtString* string) {
     JWT_CHECK(jwtWriteJsonObjectWriter(object, writer));
 
     JwtList* list = jwtWriterExtractDynamic(&writer);
+    *static_cast<uint8_t*>(jwtListPush(list)) = 0;
     string->length = list->size;
     string->data = static_cast<char*>(jwtListReclaim(list));
  

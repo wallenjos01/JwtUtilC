@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
     }
     
     if(result != JWT_RESULT_SUCCESS) {
-        std::cerr << "An error occurred! (" << result << ")";
+        std::cerr << "An error occurred! (" << result << ")\n";
         return 1;
     }
 

@@ -12,7 +12,7 @@
 
 #else
 #define JWT_REPORT_ERROR(error) \
-    std::cerr << error << __FILE__ << ":" << __LINE__;
+    std::cerr << error << "@" << __FILE__ << ":" << __LINE__;
 #endif
 
 template <typename T> struct Span {

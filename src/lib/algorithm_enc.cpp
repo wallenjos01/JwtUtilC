@@ -32,7 +32,7 @@ JwtResult encryptCekRsa(Span<uint8_t> cek, JwtKey* key, JwtAlgorithm algorithm, 
     }
 
     JwtResult result = JWT_RESULT_SUCCESS;
-    EVP_PKEY* pkey = *static_cast<EVP_PKEY**>(key->keyData);
+    EVP_PKEY* pkey = static_cast<EVP_PKEY*>(key->keyData);
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_pkey(nullptr, pkey, nullptr);
     if(ctx == nullptr) {
         ERR_print_errors_fp(stderr);
@@ -87,11 +87,90 @@ JwtResult encryptCekRsa(Span<uint8_t> cek, JwtKey* key, JwtAlgorithm algorithm, 
         goto cleanup;
     }
 
+    if(outputLength) {
+        *outputLength = cryptLength;
+    }
+
 cleanup:
 
     EVP_PKEY_CTX_free(ctx);
     return result;
 }
+
+JwtResult decryptCekRsa(Span<uint8_t> cek, JwtKey* key, JwtAlgorithm algorithm, Span<uint8_t> output, size_t* outputLength) {
+
+    if(key->type != JWT_KEY_TYPE_RSA) {
+        return JWT_RESULT_INVALID_KEY_TYPE;
+    }
+
+    JwtResult result = JWT_RESULT_SUCCESS;
+    EVP_PKEY* pkey = static_cast<EVP_PKEY*>(key->keyData);
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_pkey(nullptr, pkey, nullptr);
+    if(ctx == nullptr) {
+        ERR_print_errors_fp(stderr);
+        return JWT_RESULT_UNEXPECTED_ERROR;
+    }
+
+    OSSL_PARAM_BLD* builder = OSSL_PARAM_BLD_new();
+    OSSL_PARAM* params = nullptr;
+    size_t keyLength;
+
+    switch(algorithm) {
+        case JWT_ALGORITHM_RSA1_5:
+            OSSL_PARAM_BLD_push_utf8_string(builder, OSSL_ASYM_CIPHER_PARAM_PAD_MODE, OSSL_PKEY_RSA_PAD_MODE_PKCSV15, 0);
+            break;
+        case JWT_ALGORITHM_RSA_OAEP:
+            OSSL_PARAM_BLD_push_utf8_string(builder, OSSL_ASYM_CIPHER_PARAM_PAD_MODE, OSSL_PKEY_RSA_PAD_MODE_OAEP, 0);
+            break;
+        case JWT_ALGORITHM_RSA_OAEP_256:
+            OSSL_PARAM_BLD_push_utf8_string(builder, OSSL_ASYM_CIPHER_PARAM_PAD_MODE, OSSL_PKEY_RSA_PAD_MODE_OAEP, 0);
+            OSSL_PARAM_BLD_push_utf8_string(builder, OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST, "sha256", 0);
+            OSSL_PARAM_BLD_push_utf8_string(builder, OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST, "sha256", 0);
+            break;
+        default:
+            result = JWT_RESULT_INVALID_ALGORITHM;
+            goto cleanup;
+    }
+
+    params = OSSL_PARAM_BLD_to_param(builder);
+
+    if(EVP_PKEY_decrypt_init_ex(ctx, params) <= 0) {
+        JWT_REPORT_ERROR("EVP_PKEY_decrypt_init_ex() failed");
+        ERR_print_errors_fp(stderr);
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
+    }
+
+    if(EVP_PKEY_decrypt(ctx, nullptr, &keyLength, cek.data, cek.length) <= 0) {
+        JWT_REPORT_ERROR("EVP_PKEY_decrypt() failed");
+        ERR_print_errors_fp(stderr);
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
+    }
+
+    if(outputLength) {
+        *outputLength = keyLength;
+    }
+    if(output.data == nullptr) {
+        goto cleanup;
+    }
+
+    if(EVP_PKEY_decrypt(ctx, output.data, &keyLength, cek.data, cek.length) <= 0) {
+        JWT_REPORT_ERROR("EVP_PKEY_decrypt_init_ex() failed");
+        ERR_print_errors_fp(stderr);
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
+    }
+    if(outputLength) {
+        *outputLength = keyLength;
+    }
+
+cleanup:
+
+    EVP_PKEY_CTX_free(ctx);
+    return result;
+}
+
 
 
 JwtResult encryptAndHmac(Span<uint8_t> input, Span<uint8_t> aad, Span<uint8_t> iv, 
@@ -519,6 +598,7 @@ JwtResult decryptGCM(Span<uint8_t> cipherText, Span<uint8_t> tag, Span<uint8_t> 
     }
 
     if(key.length != keyLen) {
+        std::cerr << key.length << " != " << keyLen;
         return JWT_RESULT_INVALID_CEK_LENGTH;
     }
     if(iv.length != 12) {
@@ -630,7 +710,14 @@ JwtResult jwt::enc::encryptCek(JwtJsonObject* header, Span<uint8_t> cek, JwtKey*
         return JWT_RESULT_BAD_CEK;
     }
 
-    return JWT_RESULT_SUCCESS;
+    switch(algorithm) {
+    case JWT_ALGORITHM_RSA1_5:
+    case JWT_ALGORITHM_RSA_OAEP:
+    case JWT_ALGORITHM_RSA_OAEP_256:
+        return encryptCekRsa(cek, key, algorithm, output, outputLength);
+    default:
+        return JWT_RESULT_UNIMPLEMENTED;
+    }
 }
 JwtResult jwt::enc::decryptCek(JwtJsonObject* header, Span<uint8_t> encryptedKey, JwtKey* key, 
                                JwtAlgorithm algorithm, Span<uint8_t> output, size_t* outputLength) {
@@ -640,6 +727,15 @@ JwtResult jwt::enc::decryptCek(JwtJsonObject* header, Span<uint8_t> encryptedKey
     }
     if(key->operations != 0 && (key->operations & JWT_KEY_OP_UNWRAP_KEY) == 0) {
         return JWT_RESULT_INVALID_KEY_OPERATION;
+    }
+
+    switch(algorithm) {
+    case JWT_ALGORITHM_RSA1_5:
+    case JWT_ALGORITHM_RSA_OAEP:
+    case JWT_ALGORITHM_RSA_OAEP_256:
+        return decryptCekRsa(encryptedKey, key, algorithm, output, outputLength);
+    default:
+        return JWT_RESULT_UNIMPLEMENTED;
     }
 
     return JWT_RESULT_SUCCESS;

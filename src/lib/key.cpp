@@ -1,7 +1,7 @@
 /**
  * Josh Wallentine
  * Created 9/30/25
- * Modified 10/3/25
+ * Modified 11/12/25
  *
  * Implementation of include/jwt/key.h
  * Partial implementation of key.hpp

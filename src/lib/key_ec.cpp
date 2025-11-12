@@ -1,7 +1,7 @@
 /**
  * Josh Wallentine
  * Created 10/3/25
- * Modified 10/27/25
+ * Modified 11/12/25
  *
  * Partial implementation of key.hpp
  * See also key.cpp, key_rsa.cpp
@@ -32,24 +32,24 @@ enum Curve { P256 = 0, P384 = 1, P521 = 2 };
 
 constexpr size_t COORD_LEN[3] = {32, 48, 66};
 
-int32_t parseCurve(Curve* curve, JwtString str) {
+JwtResult parseCurve(Curve* curve, JwtString str) {
 
     size_t hash = hashString(str.data, str.length);
     switch (hash) {
     case hashCString("p256"):
     case hashCString("P-256"):
         *curve = P256;
-        return 0;
+        return JWT_RESULT_SUCCESS;
     case hashCString("p384"):
     case hashCString("P-384"):
         *curve = P384;
-        return 0;
+        return JWT_RESULT_SUCCESS;
     case hashCString("p521"):
     case hashCString("P-521"):
         *curve = P521;
-        return 0;
+        return JWT_RESULT_SUCCESS;
     default:
-        return 1;
+        return JWT_RESULT_UNKNOWN_CURVE;
     }
 }
 
@@ -86,9 +86,7 @@ JwtResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
     }
 
     Curve curve;
-    if (parseCurve(&curve, crv) != 0) {
-        return JWT_RESULT_UNKNOWN_CURVE;
-    }
+    JWT_CHECK(parseCurve(&curve, crv));
 
     JwtString xB64 = jwtJsonObjectGetString(obj, "x");
     JwtString yB64 = jwtJsonObjectGetString(obj, "y");
