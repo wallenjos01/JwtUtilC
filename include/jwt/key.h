@@ -1,6 +1,7 @@
 #ifndef JWT_KEY_H
 #define JWT_KEY_H
 
+#include "jwt/result.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -97,6 +98,15 @@ enum JwtKeyOperation : uint8_t {
 };
 
 typedef uint8_t JwtKeyOperations;
+
+/**
+ * Enumerates supported Elliptic Curve curves
+ */
+enum JwtEcCurve {
+    JWT_EC_CURVE_P256,
+    JWT_EC_CURVE_P384,
+    JWT_EC_CURVE_P521
+};
 
 /**
  * Represents the X.509 certificate information part of a JWK
@@ -215,12 +225,38 @@ JwtResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj);
 void jwtKeyDestroy(JwtKey* key);
 
 /**
- * Attempts to write the given JWK to the given JSON object
+ * @brief Attempts to write the given JWK to the given JSON object
  * @param key The key to write
  * @param obj The object to write to
  * @return 0 on success, or some error code
  */
 JwtResult jwtKeyEncode(JwtKey* key, JwtJsonObject* obj);
+
+/**
+ * @brief Generates a new RSA keypair
+ * @param out Where to store the generated key.
+ * @param bits The number of bits in the key.
+ */
+JwtResult jwtKeyGenerateRsa(JwtKey* out, size_t bits);
+
+/**
+ * @brief Generates a new octet sequence key for AES or HMAC
+ * @param out Where to store the generated key.
+ * @param bytes The number of bytes in the key.
+ */
+JwtResult jwtKeyGenerateOct(JwtKey* out, size_t bytes);
+
+/**
+ * @brief Generates a new EC keypair
+ * @param out Where to store the generated key.
+ * @param curve The curve the key belongs to.
+ */
+JwtResult jwtKeyGenerateEc(JwtKey* out, JwtEcCurve curve);
+
+/**
+ * Attempts to parse an EC curve by name
+ */
+JwtResult jwtCurveParse(JwtEcCurve* out, JwtString name);
 
 /**
  * Represents a set of zero or more JWKs

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "algorithm.hpp"
+#include "jwt/json.h"
 
 #include <jwt/result.h>
 #include <jwt/key.h>
@@ -17,6 +18,11 @@ JwtResult parseOctKey(JwtKey* key, JwtJsonObject* obj);
 JwtResult writeRsaKey(JwtKey* key, JwtJsonObject* obj);
 JwtResult writeEcKey(JwtKey* key, JwtJsonObject* obj);
 JwtResult writeOctKey(JwtKey* key, JwtJsonObject* obj);
+
+JwtResult getKeyCurve(JwtKey* key, JwtEcCurve* curve);
+JwtResult getKeyPkey(JwtKey* key, EVP_PKEY** pkey);
+JwtResult getKeyBytes(JwtKey* key, Span<uint8_t>* bytes);
+
 
 inline JwtResult writeBnToObject(JwtJsonObject* object, EVP_PKEY* pkey, const char* param, const char* key, JwtResult notPresent) {
 

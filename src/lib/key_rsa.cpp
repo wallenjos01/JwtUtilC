@@ -223,7 +223,7 @@ JwtResult jwt::parseRsaKey(JwtKey* key, JwtJsonObject* obj) {
                                    factors.getCoefficientName(i).c_str(),
                                    coefficient);
         }
-    }
+  }
 
     OSSL_PARAM* params = OSSL_PARAM_BLD_to_param(paramBuilder);
     OSSL_PARAM_BLD_free(paramBuilder);
@@ -277,4 +277,19 @@ JwtResult jwt::writeRsaKey(JwtKey *key, JwtJsonObject *obj) {
     }
 
     return JWT_RESULT_SUCCESS;
+}
+
+JwtResult jwtKeyGenerateRsa(JwtKey *out, size_t bits) {
+
+    EVP_PKEY* pkey = EVP_RSA_gen(bits);
+    if(pkey == nullptr) {
+        return JWT_RESULT_ILLEGAL_ARGUMENT;
+    }
+    
+    out->keyData = pkey;
+    out->type = JWT_KEY_TYPE_RSA;
+    out->isPrivateKey = true;
+
+    return JWT_RESULT_SUCCESS;
+
 }

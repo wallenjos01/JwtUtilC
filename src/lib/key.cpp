@@ -13,6 +13,8 @@
 
 #include <openssl/evp.h>
 #include <openssl/params.h>
+#include <openssl/core_names.h>
+#include <openssl/rand.h>
 
 #include "algorithm.hpp"
 #include "hash.hpp"
@@ -44,9 +46,9 @@ JwtResult parseKeyType(JwtKeyType* type, JwtString str) {
 
 const char* getKeyTypeName(JwtKeyType type) {
     switch(type) {
-        case JWT_KEY_TYPE_RSA:
-            return "EC";
         case JWT_KEY_TYPE_ELLIPTIC_CURVE:
+            return "EC";
+        case JWT_KEY_TYPE_RSA:
             return "RSA";
         case JWT_KEY_TYPE_OCTET_SEQUENCE:
             return "oct";
@@ -342,6 +344,56 @@ JwtResult jwt::writeOctKey(JwtKey* key, JwtJsonObject* obj) {
 
     jwtJsonObjectSetString(obj, "k", b64.data);
     return JWT_RESULT_SUCCESS;
-
 }
 
+JwtResult jwt::getKeyCurve(JwtKey *key, JwtEcCurve *curve) {
+
+    if(key->type != JWT_KEY_TYPE_ELLIPTIC_CURVE) return JWT_RESULT_ILLEGAL_ARGUMENT;
+
+    EVP_PKEY* pkey;
+    JWT_CHECK(jwt::getKeyPkey(key, &pkey));
+
+    JwtString str;
+    EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, nullptr, 0, &str.length);
+
+    char* data = new char[str.length + 1];
+    EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, data, str.length, nullptr);
+    str.data = data;
+
+    JwtResult result = jwtCurveParse(curve, str);
+    jwtStringDestroy(&str);
+
+    return result;
+}
+
+JwtResult jwt::getKeyPkey(JwtKey* key, EVP_PKEY** pkey) {
+
+    if(key->type == JWT_KEY_TYPE_OCTET_SEQUENCE) return JWT_RESULT_ILLEGAL_ARGUMENT;
+
+    *pkey = static_cast<EVP_PKEY*>(key->keyData);
+    return JWT_RESULT_SUCCESS;
+}
+
+JwtResult jwt::getKeyBytes(JwtKey* key, Span<uint8_t>* bytes) {
+
+    if(key->type != JWT_KEY_TYPE_OCTET_SEQUENCE) return JWT_RESULT_ILLEGAL_ARGUMENT;
+
+    *bytes = *static_cast<Span<uint8_t>*>(key->keyData);
+    return JWT_RESULT_SUCCESS;
+}
+
+
+JwtResult jwtKeyGenerateOct(JwtKey* key, size_t length) {
+
+    if(length == 0) {
+        return JWT_RESULT_ILLEGAL_ARGUMENT;
+    }
+
+    Span<uint8_t>* span = new Span<uint8_t>(new uint8_t[length], length);
+    RAND_bytes(span->data, length);
+
+    key->keyData = span;
+    key->type = JWT_KEY_TYPE_OCTET_SEQUENCE;
+
+    return JWT_RESULT_SUCCESS;
+}

@@ -111,16 +111,16 @@ JwtResult writeSignedToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey
 
 JwtResult writeEncryptedToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtCryptAlgorithm crypt, JwtWriter out) {
 
-    // Header
-    JWT_CHECK(writeJsonObjectB64(header, out));
-    JWT_CHECK(jwtWriterWrite(out, ".", 1, nullptr));
-
-
     // CEK
     size_t keyLength = jwt::enc::getKeyLength(crypt);
     Span<uint8_t> cek = {};
     Span<uint8_t> encryptedKey = {};
     JWT_CHECK(jwt::enc::generateCek(header, key, algorithm, crypt, &cek, &encryptedKey));
+
+    // Header
+    JWT_CHECK(writeJsonObjectB64(header, out));
+    JWT_CHECK(jwtWriterWrite(out, ".", 1, nullptr));
+
     if(encryptedKey.length > 0) {
         JWT_CHECK(jwt::b64url::encode(encryptedKey.data, encryptedKey.length, out));
     }

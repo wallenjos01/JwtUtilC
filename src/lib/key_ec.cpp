@@ -29,54 +29,55 @@
 
 namespace {
 
-enum Curve { P256 = 0, P384 = 1, P521 = 2 };
-
 constexpr size_t COORD_LEN[3] = {32, 48, 66};
 
-JwtResult parseCurve(Curve* curve, JwtString str) {
-
-    size_t hash = hashString(str.data, str.length);
-    switch (hash) {
-    case hashCString("p256"):
-    case hashCString("P-256"):
-        *curve = P256;
-        return JWT_RESULT_SUCCESS;
-    case hashCString("p384"):
-    case hashCString("P-384"):
-        *curve = P384;
-        return JWT_RESULT_SUCCESS;
-    case hashCString("p521"):
-    case hashCString("P-521"):
-        *curve = P521;
-        return JWT_RESULT_SUCCESS;
-    default:
-        return JWT_RESULT_UNKNOWN_CURVE;
-    }
-}
-
-const char* getCurveName(Curve curve) {
+const char* getCurveName(JwtEcCurve curve) {
     switch (curve) {
-    case P256:
+    case JWT_EC_CURVE_P256:
         return "P-256";
-    case P384:
+    case JWT_EC_CURVE_P384:
         return "P-384";
-    case P521:
+    case JWT_EC_CURVE_P521:
         return "P-521";
     default:
         return nullptr;
     }
 }
 
-int32_t getCurveNid(Curve curve) {
+int32_t getCurveNid(JwtEcCurve curve) {
     switch(curve) {
-        case P256: return NID_X9_62_prime256v1;
-        case P384: return NID_secp384r1;
-        case P521: return NID_secp521r1;
+        case JWT_EC_CURVE_P256: return NID_X9_62_prime256v1;
+        case JWT_EC_CURVE_P384: return NID_secp384r1;
+        case JWT_EC_CURVE_P521: return NID_secp521r1;
     }
     return -1;
 }
 
 } // namespace
+
+JwtResult jwtCurveParse(JwtEcCurve* curve, JwtString str) {
+
+    size_t hash = hashString(str.data, str.length);
+    switch (hash) {
+        case hashCString("p256"):
+        case hashCString("P-256"):
+        case hashCString("prime256v1"):
+            *curve = JWT_EC_CURVE_P256;
+            return JWT_RESULT_SUCCESS;
+        case hashCString("p384"):
+        case hashCString("P-384"):
+        case hashCString("secp384r1"):
+            *curve = JWT_EC_CURVE_P384;
+            return JWT_RESULT_SUCCESS;
+        case hashCString("p521"):
+        case hashCString("P-521"):
+        case hashCString("secp521r1"):
+            *curve = JWT_EC_CURVE_P521;
+            return JWT_RESULT_SUCCESS;
+        default:
+            return JWT_RESULT_UNKNOWN_CURVE;
+    }
+}
 
 JwtResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
 
@@ -86,8 +87,8 @@ JwtResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
         return JWT_RESULT_MISSING_REQUIRED_KEY_PARAM;
     }
 
-    Curve curve;
-    JWT_CHECK(parseCurve(&curve, crv));
+    JwtEcCurve curve = JWT_EC_CURVE_P256;
+    JWT_CHECK(jwtCurveParse(&curve, crv));
 
     JwtString xB64 = jwtJsonObjectGetString(obj, "x");
     JwtString yB64 = jwtJsonObjectGetString(obj, "y");
@@ -101,7 +102,7 @@ JwtResult jwt::parseEcKey(JwtKey* key, JwtJsonObject* obj) {
     Span<uint8_t> ys = {};
     Span<uint8_t> ds = {};
 
-    BIGNUM* d;
+    BIGNUM* d = nullptr;
 
     JWT_CHECK(jwt::b64url::decodeNew(xB64.data, xB64.length, &xs));
     JWT_CHECK(jwt::b64url::decodeNew(yB64.data, yB64.length, &ys));
@@ -175,13 +176,9 @@ JwtResult jwt::writeEcKey(JwtKey *key, JwtJsonObject *obj) {
     EVP_PKEY* pkey = static_cast<EVP_PKEY*>(key->keyData);
     int selection = key->isPrivateKey ? EVP_PKEY_KEYPAIR : EVP_PKEY_PUBLIC_KEY;
 
-    JwtString str = {};
-    EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, nullptr, 0, &str.length);
-    str.data = new char[str.length + 1];
-    EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, const_cast<char*>(str.data), str.length, nullptr);
-
-    jwtJsonObjectSetString(obj, "crv", str.data);
-    jwtStringDestroy(&str);
+    JwtEcCurve curve;
+    JWT_CHECK(jwt::getKeyCurve(key, &curve));
+    jwtJsonObjectSetString(obj, "crv", getCurveName(curve));
 
     JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_EC_PUB_X, "x", JWT_RESULT_MISSING_REQUIRED_KEY_PARAM));
     JWT_CHECK(writeBnToObject(obj, pkey, OSSL_PKEY_PARAM_EC_PUB_Y, "y", JWT_RESULT_MISSING_REQUIRED_KEY_PARAM));
@@ -191,4 +188,20 @@ JwtResult jwt::writeEcKey(JwtKey *key, JwtJsonObject *obj) {
     }
 
     return JWT_RESULT_SUCCESS;
+}
+
+
+JwtResult jwtKeyGenerateEc(JwtKey* key, JwtEcCurve curve) {
+
+    EVP_PKEY* pkey = EVP_EC_gen(getCurveName(curve));
+    if(pkey == nullptr) {
+        return JWT_RESULT_ILLEGAL_ARGUMENT;
+    }
+
+    key->keyData = pkey;
+    key->type = JWT_KEY_TYPE_ELLIPTIC_CURVE;
+    key->isPrivateKey = true;
+
+    return JWT_RESULT_SUCCESS;
+
 }

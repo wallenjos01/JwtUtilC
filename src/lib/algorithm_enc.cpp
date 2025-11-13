@@ -9,6 +9,7 @@
 
 #include "algorithm.hpp"
 #include "jwt/json.h"
+#include "key.hpp"
 #include "util.hpp"
 
 #include <cstdio>
@@ -185,25 +186,24 @@ JwtResult encryptCekAes(Span<uint8_t> cek, JwtKey* key, JwtAlgorithm algorithm, 
     Span<uint8_t> keyBytes = *static_cast<Span<uint8_t>*>(key->keyData);
 
     const EVP_CIPHER* cipher;
-    size_t keyLen;
     switch(algorithm) {
         case JWT_ALGORITHM_A128KW:
+        case JWT_ALGORITHM_ECDH_ES_A128KW:
             cipher = EVP_aes_128_wrap();
-            keyLen = 16;
             break;
         case JWT_ALGORITHM_A192KW:
+        case JWT_ALGORITHM_ECDH_ES_A192KW:
             cipher = EVP_aes_192_wrap();
-            keyLen = 24;
             break;
         case JWT_ALGORITHM_A256KW:
+        case JWT_ALGORITHM_ECDH_ES_A256KW:
             cipher = EVP_aes_256_wrap();
-            keyLen = 32;
             break;
         default:
             return JWT_RESULT_INVALID_ALGORITHM;
     }
 
-    size_t expectedLength = keyLen + AES_BLOCK_SIZE;
+    size_t expectedLength = cek.length + AES_BLOCK_SIZE;
 
     if(outputLength) {
         *outputLength = expectedLength;
@@ -215,10 +215,6 @@ JwtResult encryptCekAes(Span<uint8_t> cek, JwtKey* key, JwtAlgorithm algorithm, 
 
     if(output.length < expectedLength) {
         return JWT_RESULT_SHORT_BUFFER;
-    }
-
-    if(cek.length != keyLen) {
-        return JWT_RESULT_INVALID_CEK_LENGTH;
     }
 
     EVP_CIPHER_CTX* cipherCtx = EVP_CIPHER_CTX_new();
@@ -275,14 +271,17 @@ JwtResult decryptCekAes(Span<uint8_t> cek, JwtKey* key, JwtAlgorithm algorithm, 
     size_t keyLen;
     switch(algorithm) {
         case JWT_ALGORITHM_A128KW:
+        case JWT_ALGORITHM_ECDH_ES_A128KW:
             cipher = EVP_aes_128_wrap();
             keyLen = 16;
             break;
         case JWT_ALGORITHM_A192KW:
+        case JWT_ALGORITHM_ECDH_ES_A192KW:
             cipher = EVP_aes_192_wrap();
             keyLen = 24;
             break;
         case JWT_ALGORITHM_A256KW:
+        case JWT_ALGORITHM_ECDH_ES_A256KW:
             cipher = EVP_aes_256_wrap();
             keyLen = 32;
             break;
@@ -346,46 +345,67 @@ cleanup:
 }
 
 JwtResult generateCekEc(JwtJsonObject* header, JwtKey* key, JwtAlgorithm algorithm, 
-                        JwtCryptAlgorithm crypt, Span<uint8_t>* output) {
+                        JwtCryptAlgorithm crypt, JwtKey* epk) {
 
-    EVP_PKEY* epk = EVP_EC_gen("P-256");
+    JwtEcCurve curve = {};
+    JWT_CHECK(jwt::getKeyCurve(key, &curve));
 
+    JWT_CHECK(jwtKeyGenerateEc(epk, curve));
+    epk->isPrivateKey = false;
+
+    JwtJsonObject keyObj = {};
+    jwtJsonObjectCreate(&keyObj);
+    JWT_CHECK(jwtKeyEncode(epk, &keyObj));
+    epk->isPrivateKey = true;
+
+    jwtJsonObjectSetObject(header, "epk", keyObj);
     return JWT_RESULT_SUCCESS;
 }
 
+JwtResult getEpk(JwtJsonObject* header, JwtKey* epk, size_t* keyLen) {
 
-JwtResult deriveCekEc(JwtJsonObject* header, Span<uint8_t> cek, JwtKey* key, 
-                       JwtAlgorithm algorithm, Span<uint8_t> output, size_t* outputLength) {
-
+    JwtCryptAlgorithm crypt;
+    JWT_CHECK(jwtCryptAlgorithmParse(&crypt, jwtJsonObjectGetString(header, "enc").data));
+    *keyLen = jwt::enc::getKeyLength(crypt);
 
     JwtJsonObject epkObj = jwtJsonObjectGetObject(header, "epk");
     if(epkObj.buckets == nullptr) {
         return JWT_RESULT_MISSING_REQUIRED_HEADER_CLAIM;
     }
-    
-    JwtKey epk = {};
-    JWT_CHECK(jwtKeyParse(&epk, &epkObj));
-    if(epk.isPrivateKey || epk.type != JWT_KEY_TYPE_ELLIPTIC_CURVE) {
-        jwtKeyDestroy(&epk);
+
+    JWT_CHECK(jwtKeyParse(epk, &epkObj));
+    if(epk->isPrivateKey || epk->type != JWT_KEY_TYPE_ELLIPTIC_CURVE) {
+        jwtKeyDestroy(epk);
         return JWT_RESULT_BAD_EPK;
     }
 
+    return JWT_RESULT_SUCCESS;
+}
+
+JwtResult deriveCekEc(JwtKey* epk, JwtKey* key, 
+                       JwtAlgorithm algorithm, Span<uint8_t> output, size_t keyLen) {
+    
     JwtResult result = JWT_RESULT_SUCCESS;
-    size_t encLen = 0;
-    JwtString apuB64 = jwtJsonObjectGetString(header, "apu");
-    JwtString apvB64 = jwtJsonObjectGetString(header, "apv");
+    size_t encLen = keyLen;
     
     EVP_PKEY* pkey = static_cast<EVP_PKEY*>(key->keyData);
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_pkey(nullptr, pkey, nullptr);
 
-    EVP_PKEY* epkey = static_cast<EVP_PKEY*>(epk.keyData);
+    EVP_PKEY* epkey = static_cast<EVP_PKEY*>(epk->keyData);
 
-    if(EVP_PKEY_derive_init(ctx) <= 0) {
+    OSSL_PARAM_BLD* builder = OSSL_PARAM_BLD_new();
+    //OSSL_PARAM_BLD_push_utf8_string(builder, OSSL_EXCHANGE_PARAM_KDF_TYPE, "X963KDF", 0);
+    OSSL_PARAM_BLD_push_size_t(builder, OSSL_EXCHANGE_PARAM_KDF_OUTLEN, keyLen);
+
+    OSSL_PARAM* params = OSSL_PARAM_BLD_to_param(builder);
+    if(EVP_PKEY_derive_init_ex(ctx, params) <= 0) {
         JWT_REPORT_ERROR("EVP_PKEY_derive_init() failed");
+        OSSL_PARAM_free(params);
         ERR_print_errors_fp(stderr);
         result = JWT_RESULT_UNEXPECTED_ERROR;
         goto cleanup;
     }
+    OSSL_PARAM_free(params);
 
     if(EVP_PKEY_derive_set_peer(ctx, epkey) <= 0) {
         JWT_REPORT_ERROR("EVP_PKEY_derive_set_peer() failed");
@@ -394,19 +414,17 @@ JwtResult deriveCekEc(JwtJsonObject* header, Span<uint8_t> cek, JwtKey* key,
         goto cleanup;
     }
 
-    if(EVP_PKEY_derive(ctx, nullptr, &encLen) <= 0) {
-        JWT_REPORT_ERROR("EVP_PKEY_derive() failed");
-        ERR_print_errors_fp(stderr);
-        result = JWT_RESULT_UNEXPECTED_ERROR;
-        goto cleanup;
-    }
-
-    if(outputLength) {
-        *outputLength = encLen;
-    }
-    if(output.data == nullptr) {
-        return JWT_RESULT_SUCCESS;
-    }
+    // if(EVP_PKEY_derive(ctx, nullptr, &encLen) <= 0) {
+    //     JWT_REPORT_ERROR("EVP_PKEY_derive() failed");
+    //     ERR_print_errors_fp(stderr);
+    //     result = JWT_RESULT_UNEXPECTED_ERROR;
+    //     goto cleanup;
+    // }
+    // if(encLen != keyLen) {
+    //     JWT_REPORT_ERROR("Key was the wrong length!");
+    //     result = JWT_RESULT_UNEXPECTED_ERROR;
+    //     goto cleanup;
+    // }
 
     if(EVP_PKEY_derive(ctx, output.data, &encLen) <= 0) {
         JWT_REPORT_ERROR("EVP_PKEY_derive() failed");
@@ -414,14 +432,10 @@ JwtResult deriveCekEc(JwtJsonObject* header, Span<uint8_t> cek, JwtKey* key,
         result = JWT_RESULT_UNEXPECTED_ERROR;
         goto cleanup;
     }
-    if(outputLength) {
-        *outputLength = encLen;
-    }
 
 cleanup:
 
     EVP_PKEY_CTX_free(ctx);
-    jwtKeyDestroy(&epk);
     return result;
 }
 
@@ -1024,12 +1038,51 @@ JwtResult jwt::enc::generateCek(JwtJsonObject* header, JwtKey* key, JwtAlgorithm
             }
             return JWT_RESULT_SUCCESS;
         case JWT_ALGORITHM_ECDH_ES: {
+            JwtKey epk = {};
+            JWT_CHECK(generateCekEc(header, key, algorithm, crypt, &epk));
 
-            return JWT_RESULT_SUCCESS;
+            *cek = Span<uint8_t>(new uint8_t[keyLen], keyLen);
+            return deriveCekEc(&epk, key, algorithm, *cek, keyLen);
         }
         case JWT_ALGORITHM_ECDH_ES_A128KW:
         case JWT_ALGORITHM_ECDH_ES_A192KW:
         case JWT_ALGORITHM_ECDH_ES_A256KW: {
+
+            JwtKey epk = {};
+            JWT_CHECK(generateCekEc(header, key, algorithm, crypt, &epk));
+            size_t wrapKeyLen = 0;
+            switch(algorithm) {
+                case JWT_ALGORITHM_ECDH_ES_A128KW:
+                    wrapKeyLen = 16;
+                    break;
+                case JWT_ALGORITHM_ECDH_ES_A192KW:
+                    wrapKeyLen = 24;
+                    break;
+                case JWT_ALGORITHM_ECDH_ES_A256KW:
+                    wrapKeyLen = 32;
+                    break;
+                default:
+                    return JWT_RESULT_UNEXPECTED_ERROR;
+            }
+
+            Span<uint8_t> wrapKey = Span<uint8_t>(new uint8_t[wrapKeyLen], wrapKeyLen);
+            JWT_CHECK(deriveCekEc(&epk, key, algorithm, wrapKey, wrapKeyLen));
+
+            *cek = Span<uint8_t>(new uint8_t[keyLen], keyLen);
+            RAND_bytes(cek->data, cek->length);
+            size_t encLen = 0;
+
+            JwtKey wrap = {};
+            wrap.type = JWT_KEY_TYPE_OCTET_SEQUENCE;
+            wrap.keyData = &wrapKey;
+            JWT_CHECK(encryptCekAes(*cek, &wrap, algorithm, {}, &encLen));
+
+            encryptedKey->length = encLen;
+            encryptedKey->data = new uint8_t[encLen];
+            encryptedKey->owned = true;
+            JWT_CHECK(encryptCekAes(*cek, &wrap, algorithm, *encryptedKey, &encLen));
+
+            encryptedKey->length = encLen;
 
             return JWT_RESULT_SUCCESS;
         }
@@ -1072,6 +1125,53 @@ JwtResult jwt::enc::decryptCek(JwtJsonObject* header, Span<uint8_t> encryptedKey
         case JWT_ALGORITHM_A192KW:
         case JWT_ALGORITHM_A256KW:
             return decryptCekAes(encryptedKey, key, algorithm, output, outputLength);
+        case JWT_ALGORITHM_ECDH_ES: {
+            JwtKey epk = {};
+            size_t keyLen = 0;
+            JWT_CHECK(getEpk(header, &epk, &keyLen));
+
+            if(outputLength) { 
+                *outputLength = keyLen;
+            }
+            if(output.data == nullptr) {
+                return JWT_RESULT_SUCCESS;
+            }
+            if(output.length < keyLen) {
+                return JWT_RESULT_SHORT_BUFFER;
+            }
+            return deriveCekEc(&epk, key, algorithm, output, keyLen);
+        }
+        case JWT_ALGORITHM_ECDH_ES_A128KW:
+        case JWT_ALGORITHM_ECDH_ES_A192KW:
+        case JWT_ALGORITHM_ECDH_ES_A256KW: {
+            JwtKey epk = {};
+            size_t keyLen = 0;
+            JWT_CHECK(getEpk(header, &epk, &keyLen));
+
+            size_t wrapKeyLen = 0;
+            switch(algorithm) {
+                case JWT_ALGORITHM_ECDH_ES_A128KW:
+                    wrapKeyLen = 16;
+                    break;
+                case JWT_ALGORITHM_ECDH_ES_A192KW:
+                    wrapKeyLen = 24;
+                    break;
+                case JWT_ALGORITHM_ECDH_ES_A256KW:
+                    wrapKeyLen = 32;
+                    break;
+                default:
+                    return JWT_RESULT_UNEXPECTED_ERROR;
+            }
+
+            Span<uint8_t> wrapKey = Span<uint8_t>(new uint8_t[wrapKeyLen], wrapKeyLen);
+            JWT_CHECK(deriveCekEc(&epk, key, algorithm, wrapKey, wrapKeyLen));
+
+            JwtKey wrap = {};
+            wrap.type = JWT_KEY_TYPE_OCTET_SEQUENCE;
+            wrap.keyData = &wrapKey;
+
+            return decryptCekAes(encryptedKey, &wrap, algorithm, output, outputLength);
+        }
         default:
             return JWT_RESULT_UNIMPLEMENTED;
     }
