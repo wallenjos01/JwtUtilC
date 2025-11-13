@@ -414,18 +414,6 @@ JwtResult deriveCekEc(JwtKey* epk, JwtKey* key,
         goto cleanup;
     }
 
-    // if(EVP_PKEY_derive(ctx, nullptr, &encLen) <= 0) {
-    //     JWT_REPORT_ERROR("EVP_PKEY_derive() failed");
-    //     ERR_print_errors_fp(stderr);
-    //     result = JWT_RESULT_UNEXPECTED_ERROR;
-    //     goto cleanup;
-    // }
-    // if(encLen != keyLen) {
-    //     JWT_REPORT_ERROR("Key was the wrong length!");
-    //     result = JWT_RESULT_UNEXPECTED_ERROR;
-    //     goto cleanup;
-    // }
-
     if(EVP_PKEY_derive(ctx, output.data, &encLen) <= 0) {
         JWT_REPORT_ERROR("EVP_PKEY_derive() failed");
         ERR_print_errors_fp(stderr);
@@ -437,7 +425,180 @@ cleanup:
 
     EVP_PKEY_CTX_free(ctx);
     return result;
+
 }
+
+// CEK encryption for A128GCMKW, A192GCMKW, A256GCMKW
+JwtResult encryptCekAesGcm(Span<uint8_t> cek, Span<uint8_t> iv, Span<uint8_t> tag, JwtKey* key, 
+                           JwtAlgorithm algorithm, Span<uint8_t> output, size_t* outputLength) { 
+
+    if(outputLength) {
+        *outputLength = cek.length + AES_BLOCK_SIZE;
+    }
+    if(output.data == nullptr) {
+        return JWT_RESULT_SUCCESS;
+    }
+
+    if(key->type != JWT_KEY_TYPE_OCTET_SEQUENCE) {
+        return JWT_RESULT_INVALID_KEY_TYPE;
+    }
+    Span<uint8_t> keyBytes = *static_cast<Span<uint8_t>*>(key->keyData);
+
+    const EVP_CIPHER* cipher;
+    switch(algorithm) {
+        case JWT_ALGORITHM_A128GCMKW:
+            cipher = EVP_aes_128_gcm();
+            break;
+        case JWT_ALGORITHM_A192GCMKW:
+            cipher = EVP_aes_192_gcm();
+            break;
+        case JWT_ALGORITHM_A256GCMKW:
+            cipher = EVP_aes_256_gcm();
+            break;
+        default:
+            return JWT_RESULT_INVALID_ALGORITHM;
+    }
+
+    size_t expectedLength = cek.length + AES_BLOCK_SIZE;
+
+    if(iv.length != 12) {
+        return JWT_RESULT_INVALID_IV_LENGTH;
+    }
+    if(output.length < expectedLength) {
+        return JWT_RESULT_SHORT_BUFFER;
+    }
+    if(tag.length != 16) {
+        return JWT_RESULT_INVALID_TAG_LENGTH;
+    }
+
+    EVP_CIPHER_CTX* cipherCtx = EVP_CIPHER_CTX_new();
+
+    JwtResult result = JWT_RESULT_SUCCESS;
+    int32_t encLen = 0;
+    int32_t finalLen = 0;
+
+    if(EVP_EncryptInit_ex(cipherCtx, cipher, nullptr, keyBytes.data, iv.data) <= 0) {
+        JWT_REPORT_ERROR("EVP_EncryptInit_ex() failed");
+        ERR_print_errors_fp(stderr);
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
+    }
+
+    if(EVP_EncryptUpdate(cipherCtx, output.data, &encLen, cek.data, cek.length) <= 0) {
+        JWT_REPORT_ERROR("EVP_EncryptUpdate() failed");
+        ERR_print_errors_fp(stderr);
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
+    }
+
+    if(EVP_EncryptFinal(cipherCtx, output.data + encLen, &finalLen) <= 0) {
+        JWT_REPORT_ERROR("EVP_EncryptFinal() failed");
+        ERR_print_errors_fp(stderr);
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
+    }
+
+    if(EVP_CIPHER_CTX_ctrl(cipherCtx, EVP_CTRL_GCM_GET_TAG, 16, tag.data) <= 0) {
+        JWT_REPORT_ERROR("EVP_CIPHER_CTX_ctrl() failed");
+        ERR_print_errors_fp(stderr);
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
+    }
+
+    if(outputLength) {
+        *outputLength = encLen + finalLen;
+    }
+
+cleanup:
+
+    EVP_CIPHER_CTX_free(cipherCtx);
+    return result;
+}
+
+// CEK encryption for A128GCMKW, A192GCMKW, A256GCMKW
+JwtResult decryptCekAesGcm(Span<uint8_t> cek, Span<uint8_t> iv, Span<uint8_t> tag, JwtKey* key, 
+                           JwtAlgorithm algorithm, Span<uint8_t> output, size_t* outputLength) { 
+
+    if(outputLength) {
+        *outputLength = cek.length;
+    }
+    if(output.data == nullptr) {
+        return JWT_RESULT_SUCCESS;
+    }
+    if(key->type != JWT_KEY_TYPE_OCTET_SEQUENCE) {
+        return JWT_RESULT_INVALID_KEY_TYPE;
+    }
+    Span<uint8_t> keyBytes = *static_cast<Span<uint8_t>*>(key->keyData);
+
+    const EVP_CIPHER* cipher;
+    switch(algorithm) {
+        case JWT_ALGORITHM_A128GCMKW:
+            cipher = EVP_aes_128_gcm();
+            break;
+        case JWT_ALGORITHM_A192GCMKW:
+            cipher = EVP_aes_192_gcm();
+            break;
+        case JWT_ALGORITHM_A256GCMKW:
+            cipher = EVP_aes_256_gcm();
+            break;
+        default:
+            return JWT_RESULT_INVALID_ALGORITHM;
+    }
+
+    if(iv.length != 12) {
+        return JWT_RESULT_INVALID_IV_LENGTH;
+    }
+    if(output.length < cek.length) {
+        return JWT_RESULT_SHORT_BUFFER;
+    }
+    if(tag.length != 16) {
+        return JWT_RESULT_INVALID_TAG_LENGTH;
+    }
+
+    EVP_CIPHER_CTX* cipherCtx = EVP_CIPHER_CTX_new();
+
+    JwtResult result = JWT_RESULT_SUCCESS;
+    int32_t encLen = 0;
+    int32_t finalLen = 0;
+
+    if(EVP_DecryptInit_ex(cipherCtx, cipher, nullptr, keyBytes.data, iv.data) <= 0) {
+        JWT_REPORT_ERROR("EVP_DecryptInit_ex() failed");
+        ERR_print_errors_fp(stderr);
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
+    }
+
+    if(EVP_DecryptUpdate(cipherCtx, output.data, &encLen, cek.data, cek.length) <= 0) {
+        JWT_REPORT_ERROR("EVP_DecryptUpdate() failed");
+        ERR_print_errors_fp(stderr);
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
+    }
+
+    if(EVP_CIPHER_CTX_ctrl(cipherCtx, EVP_CTRL_GCM_SET_TAG, 16, tag.data) <= 0) {
+        JWT_REPORT_ERROR("EVP_CIPHER_CTX_ctrl() failed");
+        ERR_print_errors_fp(stderr);
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
+    }
+
+    if(EVP_DecryptFinal(cipherCtx, output.data + encLen, &finalLen) <= 0) {
+        JWT_REPORT_ERROR("EVP_DecryptFinal() failed");
+        ERR_print_errors_fp(stderr);
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
+    }
+
+    if(outputLength) {
+        *outputLength = encLen + finalLen;
+    }
+
+cleanup:
+
+    EVP_CIPHER_CTX_free(cipherCtx);
+    return result;
+}
+
 
 // Content encryption for A128CBC-HS256, A192CBC-HS384, A256CBC-HS512
 JwtResult encryptAndHmac(Span<uint8_t> input, Span<uint8_t> aad, Span<uint8_t> iv, 
@@ -874,6 +1035,9 @@ JwtResult decryptGCM(Span<uint8_t> cipherText, Span<uint8_t> tag, Span<uint8_t> 
     if(iv.length != 12) {
         return JWT_RESULT_INVALID_IV_LENGTH;
     }
+    if(tag.length != 16) {
+        return JWT_RESULT_INVALID_TAG_LENGTH;
+    }
 
     if(output.length < cipherText.length) {
         return JWT_RESULT_SHORT_BUFFER;
@@ -1086,6 +1250,44 @@ JwtResult jwt::enc::generateCek(JwtJsonObject* header, JwtKey* key, JwtAlgorithm
 
             return JWT_RESULT_SUCCESS;
         }
+        case JWT_ALGORITHM_A128GCMKW:
+        case JWT_ALGORITHM_A192GCMKW:
+        case JWT_ALGORITHM_A256GCMKW: {
+
+            uint8_t ivBytes[12];
+            Span<uint8_t> iv = {};
+            iv.length = 12;
+            iv.data = ivBytes;
+            RAND_bytes(iv.data, iv.length);
+
+            uint8_t tagBytes[16];
+            Span<uint8_t> tag = {};
+            tag.length = 16;
+            tag.data = tagBytes;
+            RAND_bytes(tag.data, tag.length);
+
+            *cek = Span<uint8_t>(new uint8_t[keyLen], keyLen);
+            RAND_bytes(cek->data, cek->length);
+            size_t encLen;
+            JWT_CHECK(encryptCekAesGcm(*cek, iv, tag, key, algorithm, {}, &encLen));
+
+            encryptedKey->length = encLen;
+            encryptedKey->data = new uint8_t[encLen];
+            encryptedKey->owned = true;
+            JWT_CHECK(encryptCekAesGcm(*cek, iv, tag, key, algorithm, *encryptedKey, &encLen));
+            encryptedKey->length = encLen;
+
+            JwtString ivB64 = {};
+            JWT_CHECK(jwt::b64url::encodeString(iv.data, iv.length, &ivB64));
+            jwtJsonObjectSetString(header, "iv", ivB64.data);
+
+            JwtString tagB64 = {};
+            JWT_CHECK(jwt::b64url::encodeString(tag.data, tag.length, &tagB64));
+            jwtJsonObjectSetString(header, "tag", tagB64.data);
+
+            return JWT_RESULT_SUCCESS;
+        
+        }
 
         default:
             return JWT_RESULT_UNIMPLEMENTED;
@@ -1171,6 +1373,20 @@ JwtResult jwt::enc::decryptCek(JwtJsonObject* header, Span<uint8_t> encryptedKey
             wrap.keyData = &wrapKey;
 
             return decryptCekAes(encryptedKey, &wrap, algorithm, output, outputLength);
+        }
+        case JWT_ALGORITHM_A128GCMKW:
+        case JWT_ALGORITHM_A192GCMKW:
+        case JWT_ALGORITHM_A256GCMKW: {
+
+            JwtString ivB64 = jwtJsonObjectGetString(header, "iv");
+            Span<uint8_t> iv = {};
+            JWT_CHECK(jwt::b64url::decodeNew(ivB64.data, ivB64.length, &iv));
+
+            JwtString tagB64 = jwtJsonObjectGetString(header, "tag");
+            Span<uint8_t> tag = {};
+            JWT_CHECK(jwt::b64url::decodeNew(tagB64.data, tagB64.length, &tag));
+
+            return decryptCekAesGcm(encryptedKey, iv, tag, key, algorithm, output, outputLength);     
         }
         default:
             return JWT_RESULT_UNIMPLEMENTED;
