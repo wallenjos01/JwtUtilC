@@ -26,23 +26,10 @@
 
 namespace {
 
-JwtResult parseKeyType(JwtKeyType* type, JwtString str) {
+// JwtResult parseKeyType(JwtKeyType* type, JwtString str) {
+//
 
-    size_t hash = hashString(str.data, str.length);
-    switch (hash) {
-    case hashCString("EC"):
-        *type = JWT_KEY_TYPE_ELLIPTIC_CURVE;
-        return JWT_RESULT_SUCCESS;
-    case hashCString("RSA"):
-        *type = JWT_KEY_TYPE_RSA;
-        return JWT_RESULT_SUCCESS;
-    case hashCString("oct"):
-        *type = JWT_KEY_TYPE_OCTET_SEQUENCE;
-        return JWT_RESULT_SUCCESS;
-    default:
-        return JWT_RESULT_UNKNOWN_KEY_TYPE;
-    }
-}
+// }
 
 const char* getKeyTypeName(JwtKeyType type) {
     switch(type) {
@@ -150,10 +137,27 @@ constexpr const char* getKeyOpName(JwtKeyOperation op) {
 
 } // namespace
 
+JwtResult jwtKeyTypeParse(JwtKeyType* type, JwtString name) {
+    size_t hash = hashString(name.data, name.length);
+    switch (hash) {
+    case hashCString("EC"):
+        *type = JWT_KEY_TYPE_ELLIPTIC_CURVE;
+        return JWT_RESULT_SUCCESS;
+    case hashCString("RSA"):
+        *type = JWT_KEY_TYPE_RSA;
+        return JWT_RESULT_SUCCESS;
+    case hashCString("oct"):
+        *type = JWT_KEY_TYPE_OCTET_SEQUENCE;
+        return JWT_RESULT_SUCCESS;
+    default:
+        return JWT_RESULT_UNKNOWN_KEY_TYPE;
+    }
+}
+
 JwtResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj) {
 
     JwtString kty = jwtJsonObjectGetString(obj, "kty");
-    if (kty.data == nullptr || parseKeyType(&key->type, kty) != 0) {
+    if (kty.data == nullptr || jwtKeyTypeParse(&key->type, kty) != 0) {
         return JWT_RESULT_UNKNOWN_KEY_TYPE;
     }
 

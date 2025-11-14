@@ -93,14 +93,37 @@ int main(int argc, char** argv) {
         .help("The token to verify")
         .nargs(1);
 
+    argparse::ArgumentParser keyCommand("key", JWT_VERSION);
+    keyCommand.add_argument("type")
+        .help("The type of key. One of: 'RSA', 'EC', 'oct'")
+        .choices("RSA", "EC", "oct")
+        .nargs(1);
+    keyCommand.add_argument("-l", "--length")
+        .help("The number of bytes in the key")
+        .scan<'i', uint64_t>();
+    keyCommand.add_argument("-c", "--curve")
+        .help("The curve to use for EC keys. One of: 'P-256', 'P-384', 'P-521'")
+        .choices("P-256", "P-384", "P-521");
+
     args.add_subparser(createCommand);
     args.add_subparser(verifyCommand);
     args.add_subparser(headerCommand);
+    args.add_subparser(keyCommand);
 
     try {
         args.parse_args(argc, argv);
     } catch(const std::exception& ex) {
-        std::cerr << args << "\n";
+        if(args.is_subcommand_used("create")) {
+            std::cerr << createCommand << "\n";
+        } else if(args.is_subcommand_used("verify")) {
+            std::cerr << verifyCommand << "\n";
+        } else if(args.is_subcommand_used("header")) {
+            std::cerr << headerCommand << "\n";
+        } else if(args.is_subcommand_used("key")) {
+            std::cerr << keyCommand << "\n";
+        } else {
+            std::cerr << args << "\n";
+        }
         return 1;
     }
 
@@ -112,6 +135,8 @@ int main(int argc, char** argv) {
         result = verifyToken(args.at<argparse::ArgumentParser>("verify"));
     } else if(args.is_subcommand_used("header")) {
         result = parseHeader(args.at<argparse::ArgumentParser>("header"));
+    } else if(args.is_subcommand_used("key")) {
+        result = generateKey(args.at<argparse::ArgumentParser>("key"));
     } else {
         std::cerr << args << "\n";
         return 1;

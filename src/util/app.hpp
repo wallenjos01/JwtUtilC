@@ -8,3 +8,5 @@ JwtResult createToken(argparse::ArgumentParser& args);
 JwtResult verifyToken(argparse::ArgumentParser& args);
 
 JwtResult parseHeader(argparse::ArgumentParser& args);
+
+JwtResult generateKey(argparse::ArgumentParser& args);

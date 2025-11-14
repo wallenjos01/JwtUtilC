@@ -210,6 +210,12 @@ inline bool jwtIsEncryptionAlgorithm(JwtAlgorithm algorithm) {
     return algorithm >= JWT_ALGORITHM_RSA1_5;
 }
 
+
+/**
+ * Attempts to parse an EC curve by name
+ */
+JwtResult jwtKeyTypeParse(JwtKeyType* out, JwtString name);
+
 /**
  * @brief Attempts to parse a JWK from the given JSON object
  * @param key A pointer to the place to store the output key
