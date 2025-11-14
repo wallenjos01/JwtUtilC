@@ -21,26 +21,19 @@ typedef struct ECDSA_SIG_st {
 
 JwtResult jwt::crypt::EcContext::init(EcContext* out, EVP_PKEY* pkey) {
     out->_pkey = pkey;
-    out->_ctx = EVP_PKEY_CTX_new_from_pkey(nullptr, pkey, nullptr);
-    if(out->_ctx == nullptr) {
-        JWT_REPORT_ERROR("EVP_PKEX_CTX_new_from_pkey() failed");
-        ERR_print_errors_fp(stderr);
-        return JWT_RESULT_UNEXPECTED_ERROR;
-    }
-
     return JWT_RESULT_SUCCESS;
 }
 
 JwtResult jwt::crypt::EcContext::sign(Span<uint8_t> input, const char* digest, Span<uint8_t>* signature) {
     
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-    EVP_MD* md = EVP_MD_fetch(nullptr, digest, nullptr);
+    EVP_PKEY_CTX* pctx = nullptr;
 
     size_t requiredLen = 0;
     JwtResult result = JWT_RESULT_SUCCESS;
 
-    if(EVP_DigestSignInit(ctx, &_ctx, md, nullptr, _pkey) <= 0) {
-        JWT_REPORT_ERROR("EVP_DigestSignInit() failed");
+    if(EVP_DigestSignInit_ex(ctx, &pctx, digest, nullptr, nullptr, _pkey, nullptr) <= 0) {
+        JWT_REPORT_ERROR("EVP_DigestSignInit_ex() failed");
         ERR_print_errors_fp(stderr);
         result = JWT_RESULT_UNEXPECTED_ERROR;
         goto cleanup;
@@ -81,8 +74,7 @@ JwtResult jwt::crypt::EcContext::sign(Span<uint8_t> input, const char* digest, S
     }
 cleanup:
 
-    EVP_MD_free(md);
-    EVP_MD_CTX_free(ctx);
+    EVP_MD_CTX_destroy(ctx);
 
     return result;
 }
@@ -90,13 +82,13 @@ cleanup:
 JwtResult jwt::crypt::EcContext::verify(Span<uint8_t> input, const char* digest, Span<uint8_t> signature) {
 
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-    EVP_MD* md = EVP_MD_fetch(nullptr, digest, nullptr);
+    EVP_PKEY_CTX* pctx = nullptr;
 
-    size_t requiredLen;
+    size_t requiredLen = 0;
     JwtResult result = JWT_RESULT_SUCCESS;
 
-    if(EVP_DigestVerifyInit(ctx, &_ctx, md, nullptr, _pkey) <= 0) {
-        JWT_REPORT_ERROR("EVP_DigestVerifyInit() failed");
+    if(EVP_DigestVerifyInit_ex(ctx, &pctx, digest, nullptr, nullptr, _pkey, nullptr) <= 0) {
+        JWT_REPORT_ERROR("EVP_DigestVerifyInit_ex() failed");
         ERR_print_errors_fp(stderr);
         result = JWT_RESULT_UNEXPECTED_ERROR;
         goto cleanup;
@@ -109,31 +101,28 @@ JwtResult jwt::crypt::EcContext::verify(Span<uint8_t> input, const char* digest,
         goto cleanup;
     }
 
-    if(EVP_DigestVerifyFinal(ctx, signature.data, signature.length) <= 0) {
-        ERR_print_errors_fp(stderr);
-        result = JWT_RESULT_VERIFICATION_FAILED;
-        goto cleanup;
-    } else {
-
+    {
         ECDSA_SIG sig = {};
 
         size_t length = signature.length / 2;
         sig.r = BN_bin2bn(signature.data, length, nullptr);
         sig.s = BN_bin2bn(signature.data + length, length, nullptr);
 
-        size_t sigLength = i2d_ECDSA_SIG(&sig, nullptr);
-        Span<uint8_t> der = Span<uint8_t>::allocate(sigLength);
 
+        uint8_t realSig[512] = {};
+        uint8_t* realSigPtr = realSig;
+
+        size_t sigLength = i2d_ECDSA_SIG(&sig, nullptr);
         if(sigLength > 512) {
             result = JWT_RESULT_UNEXPECTED_ERROR;
             goto cleanup;
         }
-        i2d_ECDSA_SIG(&sig, &der.data);
-        
+        i2d_ECDSA_SIG(&sig, &realSigPtr);
+
         BN_free(sig.r);
         BN_free(sig.s);
 
-        if(EVP_DigestVerifyFinal(ctx, der.data, der.length) <= 0) {
+        if(EVP_DigestVerifyFinal(ctx, realSig, sigLength) <= 0) {
             ERR_print_errors_fp(stderr);
             result = JWT_RESULT_VERIFICATION_FAILED;
         }
@@ -141,8 +130,7 @@ JwtResult jwt::crypt::EcContext::verify(Span<uint8_t> input, const char* digest,
 
 cleanup:
 
-    EVP_MD_free(md);
-    EVP_MD_CTX_free(ctx);
+    EVP_MD_CTX_destroy(ctx);
 
     return result;
 }
@@ -150,40 +138,56 @@ cleanup:
 JwtResult jwt::crypt::EcContext::diffieHelman(EVP_PKEY* peer, size_t keyLen, Span<uint8_t>* key) {
 
 
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_pkey(nullptr, _pkey, nullptr);
+    if(ctx == nullptr) {
+        JWT_REPORT_ERROR("EVP_PKEX_CTX_new_from_pkey() failed");
+        ERR_print_errors_fp(stderr);
+        return JWT_RESULT_UNEXPECTED_ERROR;
+    }
+
+    JwtResult result = JWT_RESULT_SUCCESS;
+    size_t realLen = 0;
+
     OSSL_PARAM_BLD* builder = OSSL_PARAM_BLD_new();
     //OSSL_PARAM_BLD_push_utf8_string(builder, OSSL_EXCHANGE_PARAM_KDF_TYPE, "X963KDF", 0);
     OSSL_PARAM_BLD_push_size_t(builder, OSSL_EXCHANGE_PARAM_KDF_OUTLEN, keyLen);
 
     OSSL_PARAM* params = OSSL_PARAM_BLD_to_param(builder);
-    if(EVP_PKEY_derive_init_ex(_ctx, params) <= 0) {
+    if(EVP_PKEY_derive_init_ex(ctx, params) <= 0) {
         JWT_REPORT_ERROR("EVP_PKEY_derive_init() failed");
         OSSL_PARAM_free(params);
         ERR_print_errors_fp(stderr);
-        return JWT_RESULT_UNEXPECTED_ERROR;
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
     }
     OSSL_PARAM_free(params);
 
-    if(EVP_PKEY_derive_set_peer(_ctx, peer) <= 0) {
+    if(EVP_PKEY_derive_set_peer(ctx, peer) <= 0) {
         JWT_REPORT_ERROR("EVP_PKEY_derive_set_peer() failed");
         ERR_print_errors_fp(stderr);
-        return JWT_RESULT_UNEXPECTED_ERROR;
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
     }
 
-    size_t realLen = 0;
-    if(EVP_PKEY_derive(_ctx, nullptr, &realLen) <= 0) {
+    if(EVP_PKEY_derive(ctx, nullptr, &realLen) <= 0) {
         JWT_REPORT_ERROR("EVP_PKEY_derive() failed");
         ERR_print_errors_fp(stderr);
-        return JWT_RESULT_UNEXPECTED_ERROR;
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
     }
 
     *key = Span<uint8_t>::allocate(realLen);
-    if(EVP_PKEY_derive(_ctx, key->data, &key->length) <= 0) {
+    if(EVP_PKEY_derive(ctx, key->data, &key->length) <= 0) {
         JWT_REPORT_ERROR("EVP_PKEY_derive() failed");
         ERR_print_errors_fp(stderr);
-        return JWT_RESULT_UNEXPECTED_ERROR;
+        result = JWT_RESULT_UNEXPECTED_ERROR;
+        goto cleanup;
     }
 
-    return JWT_RESULT_SUCCESS;
+cleanup:
+
+    EVP_PKEY_CTX_free(ctx);
+    return result; 
 }
 
 

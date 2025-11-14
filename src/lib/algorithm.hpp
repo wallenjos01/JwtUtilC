@@ -19,22 +19,22 @@ const char* getDigestForAlgorithm(JwtAlgorithm alg);
 
 namespace hmac {
 
-JwtResult generate(Span<uint8_t> input, JwtKey* key, JwtAlgorithm algorithm,
-                     Span<uint8_t> output, size_t* macLength);
-
-JwtResult validate(Span<uint8_t> input, Span<uint8_t> mac, JwtKey* key, 
-                     JwtAlgorithm algorithm);
+// JwtResult generate(Span<uint8_t> input, JwtKey* key, JwtAlgorithm algorithm,
+//                      Span<uint8_t> output, size_t* macLength);
+//
+// JwtResult validate(Span<uint8_t> input, Span<uint8_t> mac, JwtKey* key, 
+//                      JwtAlgorithm algorithm);
 }
 
 namespace sig {
 
 
-JwtResult generate(Span<uint8_t> input, JwtKey* key,
-                          JwtAlgorithm algorithm, Span<uint8_t> output,
-                          size_t* sigLength);
-
-JwtResult validate(Span<uint8_t> input, Span<uint8_t> signature, 
-                          JwtKey* key, JwtAlgorithm algorithm);
+// JwtResult generate(Span<uint8_t> input, JwtKey* key,
+//                           JwtAlgorithm algorithm, Span<uint8_t> output,
+//                           size_t* sigLength);
+//
+// JwtResult validate(Span<uint8_t> input, Span<uint8_t> signature, 
+//                           JwtKey* key, JwtAlgorithm algorithm);
 
 }
 

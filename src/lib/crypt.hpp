@@ -1,4 +1,3 @@
-
 #include "util.hpp"
 
 #include <jwt/key.h>
@@ -77,25 +76,16 @@ public:
 
     RsaContext() = default;
 
-    JwtResult sign(Span<uint8_t> data, const char* digest, Span<uint8_t>* signature, const OSSL_PARAM* params);
-    JwtResult verify(Span<uint8_t> data, const char* digest, Span<uint8_t> signature, const OSSL_PARAM* params);
+    JwtResult sign(Span<uint8_t> data, const char* digest, Span<uint8_t>* signature, int32_t padding);
+    JwtResult verify(Span<uint8_t> data, const char* digest, Span<uint8_t> signature, int32_t padding);
 
     JwtResult encrypt(Span<uint8_t> data, Span<uint8_t>* output, const OSSL_PARAM* params);
     JwtResult decrypt(Span<uint8_t> data, Span<uint8_t>* output, const OSSL_PARAM* params);
-
-    ~RsaContext() {
-        if(_ctx) {
-            EVP_PKEY_CTX_free(_ctx);
-            _ctx = nullptr;
-        }
-        _pkey = nullptr;
-    }
-
+ 
     static JwtResult init(RsaContext* out, EVP_PKEY* pkey);
 
 private:
     EVP_PKEY* _pkey;
-    EVP_PKEY_CTX* _ctx;
 
 };
 
@@ -107,19 +97,10 @@ public:
 
     JwtResult diffieHelman(EVP_PKEY* peer, size_t keyLen, Span<uint8_t>* key);
 
-    ~EcContext() {
-        if(_ctx) {
-            EVP_PKEY_CTX_free(_ctx);
-            _ctx = nullptr;
-        }
-        _pkey = nullptr;
-    }
-
     static JwtResult init(EcContext* out, EVP_PKEY* pkey);
 
 private:
     EVP_PKEY* _pkey;
-    EVP_PKEY_CTX* _ctx;
 
 };
 

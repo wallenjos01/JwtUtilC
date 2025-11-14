@@ -8,18 +8,22 @@
 
 
 #include "algorithm.hpp"
-#include "jwt/result.h"
+#include "key.hpp"
 #include "util.hpp"
+#include "crypt.hpp"
 
 #include <chrono>
 #include <cstdint>
+#include <jwt/result.h>
 #include <jwt/key.h>
 #include <jwt/json.h>
 #include <jwt/token.h>
 #include <jwt/core.h>
 #include <jwt/stream.h>
 
+#include <openssl/core_names.h>
 #include <openssl/rand.h>
+#include <openssl/rsa.h>
 
 namespace {
 
@@ -43,43 +47,10 @@ cleanup:
     return JWT_RESULT_SUCCESS;
 }
 
-bool isHmacAlgorithm(JwtAlgorithm algorithm) {
-    return algorithm > JWT_ALGORITHM_NONE && algorithm <= JWT_ALGORITHM_HS512;
-}
-
-bool isSigningAlgorithm(JwtAlgorithm algorithm) {
-    return algorithm > JWT_ALGORITHM_HS512 && algorithm <= JWT_ALGORITHM_PS512;
-}
-
 bool isEncryptionAlgorithm(JwtAlgorithm algorithm) {
     return algorithm > JWT_ALGORITHM_PS512;
 }
 
-JwtResult writeHmacToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtWriter out) {
-
-    JWT_CHECK(writeJsonObjectB64(header, out));
-    JWT_CHECK(jwtWriterWrite(out, ".", 1, nullptr));
-
-    JWT_CHECK(writeJsonObjectB64(payload, out));
-
-    const JwtList* toSign = jwtWriterExtractDynamic(&out);
-    Span<uint8_t> toSignData(
-        static_cast<uint8_t*>(toSign->head),
-        toSign->size
-    );
-    toSignData.owned = false;
-
-    size_t length;
-    JWT_CHECK(jwt::hmac::generate(toSignData, key, algorithm, {}, &length));
-
-    Span<uint8_t> span(new uint8_t[length], length);
-    JWT_CHECK(jwt::hmac::generate(toSignData, key, algorithm, span, &length));
-
-    JWT_CHECK(jwtWriterWrite(out, ".", 1, nullptr));
-    JWT_CHECK(jwt::b64url::encode(span.data, span.length, out));
-
-    return JWT_RESULT_SUCCESS;
-}
 
 JwtResult writeSignedToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtWriter out) {
 
@@ -89,25 +60,73 @@ JwtResult writeSignedToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey
     JWT_CHECK(writeJsonObjectB64(payload, out));
 
     const JwtList* toSign = jwtWriterExtractDynamic(&out);
-    Span<uint8_t> toSignData(
+    Span<uint8_t> toSignData = Span<uint8_t>::wrap(
         static_cast<uint8_t*>(toSign->head),
         toSign->size
     );
-    toSignData.owned = false;
 
-    size_t length;
-    JWT_CHECK(jwt::sig::generate(toSignData, key, algorithm, {}, &length));
+    const char* digest = jwt::getDigestForAlgorithm(algorithm);
+    Span<uint8_t> sig = {};
+    switch(algorithm) {
+        case JWT_ALGORITHM_HS256:
+        case JWT_ALGORITHM_HS384:
+        case JWT_ALGORITHM_HS512: {
 
-    Span<uint8_t> span(new uint8_t[length], length);
-    JWT_CHECK(jwt::sig::generate(toSignData, key, algorithm, span, &length));
+            Span<uint8_t> keyBytes = {};
+            JWT_CHECK(jwt::getKeyBytes(key, &keyBytes));
+            jwt::crypt::HmacContext ctx = {};
+            JWT_CHECK(jwt::crypt::HmacContext::init(&ctx, keyBytes, digest));
+
+            JWT_CHECK(ctx.update(toSignData));
+            JWT_CHECK(ctx.final(&sig));
+            break;
+        }
+        case JWT_ALGORITHM_RS256:
+        case JWT_ALGORITHM_RS384:
+        case JWT_ALGORITHM_RS512: {
+
+            EVP_PKEY* pkey = nullptr;
+            JWT_CHECK(jwt::getKeyPkey(key, &pkey));
+
+            jwt::crypt::RsaContext ctx = {};
+            JWT_CHECK(jwt::crypt::RsaContext::init(&ctx, pkey));
+            JWT_CHECK(ctx.sign(toSignData, digest, &sig, RSA_PKCS1_PADDING));
+            break;
+
+        }
+        case JWT_ALGORITHM_ES256:
+        case JWT_ALGORITHM_ES384:
+        case JWT_ALGORITHM_ES512: {
+
+            EVP_PKEY* pkey = nullptr;
+            JWT_CHECK(jwt::getKeyPkey(key, &pkey));
+
+            jwt::crypt::EcContext ctx = {};
+            JWT_CHECK(jwt::crypt::EcContext::init(&ctx, pkey));
+            JWT_CHECK(ctx.sign(toSignData, digest, &sig));
+            break;
+
+        }
+        case JWT_ALGORITHM_PS256:
+        case JWT_ALGORITHM_PS384:
+        case JWT_ALGORITHM_PS512: {
+            EVP_PKEY* pkey = nullptr;
+            JWT_CHECK(jwt::getKeyPkey(key, &pkey));
+
+            jwt::crypt::RsaContext ctx = {};
+            JWT_CHECK(jwt::crypt::RsaContext::init(&ctx, pkey));
+            JWT_CHECK(ctx.sign(toSignData, digest, &sig, RSA_PKCS1_PSS_PADDING));
+            break;
+        }
+        default:
+            return JWT_RESULT_INVALID_ALGORITHM;
+    }
 
     JWT_CHECK(jwtWriterWrite(out, ".", 1, nullptr));
-    JWT_CHECK(jwt::b64url::encode(span.data, length, out));
+    JWT_CHECK(jwt::b64url::encode(sig.data, sig.length, out));
 
     return JWT_RESULT_SUCCESS;
 }
-
-
 
 JwtResult writeEncryptedToken(JwtJsonObject* header, JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtCryptAlgorithm crypt, JwtWriter out) {
 
@@ -230,18 +249,14 @@ JwtResult jwtCreateSignedToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm
     JwtWriter writer;
     jwtWriterCreateDynamic(&writer);
 
-    if(isHmacAlgorithm(algorithm)) {
-        result = writeHmacToken(&header, payload, key, algorithm, writer);
-        if(result != JWT_RESULT_SUCCESS)
-            goto cleanup;
-    } else if(isSigningAlgorithm(algorithm)) {
-        result = writeSignedToken(&header, payload, key, algorithm, writer);
-        if(result != JWT_RESULT_SUCCESS)
-            goto cleanup;
-    } else {
+    if(isEncryptionAlgorithm(algorithm)) {
         result = JWT_RESULT_INVALID_ALGORITHM;
         goto cleanup;
     }
+
+    result = writeSignedToken(&header, payload, key, algorithm, writer);
+    if(result != JWT_RESULT_SUCCESS)
+        goto cleanup;
 
     {
         jwtWriterWrite(writer, "\0", 1, nullptr);
@@ -423,20 +438,74 @@ JwtResult jwtVerifyToken(JwtString token, JwtKey *key, JwtParsedToken *out, JwtV
         remaining.data = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(token.data));
         remaining.length = lastDot;
 
-        if(isHmacAlgorithm(out->algorithm)) {
+        Span<uint8_t> sig = {};
+        jwt::b64url::decodeNew(token.data + lastDot + 1, token.length - lastDot - 1, &sig);
 
-            Span<uint8_t> mac = {};
-            jwt::b64url::decodeNew(token.data + lastDot + 1, token.length - lastDot - 1, &mac);
-            JWT_CHECK(jwt::hmac::validate(remaining, mac, key, out->algorithm));
+        const char* digest = jwt::getDigestForAlgorithm(out->algorithm);
 
-        } else if(isSigningAlgorithm(out->algorithm)) {
+        switch(out->algorithm) {
+        case JWT_ALGORITHM_NONE:
+            break;
+        case JWT_ALGORITHM_HS256:
+        case JWT_ALGORITHM_HS384:
+        case JWT_ALGORITHM_HS512: {
 
-            Span<uint8_t> sig = {};
-            jwt::b64url::decodeNew(token.data + lastDot + 1, token.length - lastDot - 1, &sig);
-            JWT_CHECK(jwt::sig::validate(remaining, sig, key, out->algorithm));
+            Span<uint8_t> keyBytes = {};
+            JWT_CHECK(jwt::getKeyBytes(key, &keyBytes));
+            jwt::crypt::HmacContext ctx = {};
+            JWT_CHECK(jwt::crypt::HmacContext::init(&ctx, keyBytes, digest));
 
+            Span<uint8_t> hmac = {};
+            JWT_CHECK(ctx.update(remaining));
+            JWT_CHECK(ctx.final(&hmac));
+
+            if(hmac.length != sig.length || memcmp(hmac.data, sig.data, sig.length) != 0) {
+                return JWT_RESULT_VERIFICATION_FAILED;
+            }
+
+            break;
         }
+        case JWT_ALGORITHM_RS256:
+        case JWT_ALGORITHM_RS384:
+        case JWT_ALGORITHM_RS512: {
 
+            EVP_PKEY* pkey = nullptr;
+            JWT_CHECK(jwt::getKeyPkey(key, &pkey));
+
+            jwt::crypt::RsaContext ctx = {};
+            JWT_CHECK(jwt::crypt::RsaContext::init(&ctx, pkey));
+            JWT_CHECK(ctx.verify(remaining, digest, sig, RSA_PKCS1_PADDING));
+
+            break;
+        }
+        case JWT_ALGORITHM_ES256:
+        case JWT_ALGORITHM_ES384:
+        case JWT_ALGORITHM_ES512: {
+
+            EVP_PKEY* pkey = nullptr;
+            JWT_CHECK(jwt::getKeyPkey(key, &pkey));
+
+            jwt::crypt::EcContext ctx = {};
+            JWT_CHECK(jwt::crypt::EcContext::init(&ctx, pkey));
+            JWT_CHECK(ctx.verify(remaining, digest, sig));
+
+            break;
+        }
+        case JWT_ALGORITHM_PS256:
+        case JWT_ALGORITHM_PS384:
+        case JWT_ALGORITHM_PS512: {
+            EVP_PKEY* pkey = nullptr;
+            JWT_CHECK(jwt::getKeyPkey(key, &pkey));
+
+            jwt::crypt::RsaContext ctx = {};
+            JWT_CHECK(jwt::crypt::RsaContext::init(&ctx, pkey));
+            JWT_CHECK(ctx.verify(remaining, digest, sig, RSA_PKCS1_PSS_PADDING));
+            break;
+        }
+        default:
+            return JWT_RESULT_INVALID_ALGORITHM;
+        }
+    
 
         Span<uint8_t> payloadData = {};
         payloadData.data = remaining.data + firstDot + 1;
