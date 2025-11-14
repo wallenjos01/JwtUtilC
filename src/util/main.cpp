@@ -51,6 +51,8 @@ int main(int argc, char** argv) {
     createCommand.add_argument("-N", "--not-before")
         .help("Seconds since the epoch when the token will become valid")
         .scan<'i', uint64_t>();
+    createCommand.add_argument("-P", "--password")
+        .help("The password to use to protect JWTs encrypted with PBES2 algorithms");
 
 
     argparse::ArgumentParser verifyCommand("verify", JWT_VERSION);
@@ -83,6 +85,8 @@ int main(int argc, char** argv) {
     verifyCommand.add_argument("-o", "--output")
         .help("Output format for verify operations. One of: 'json', 'payload', 'header'")
         .choices("json", "payload", "header");
+    verifyCommand.add_argument("-P", "--password")
+        .help("The password to use to read JWTs encrypted with PBES2 algorithms");
 
     argparse::ArgumentParser headerCommand("header", JWT_VERSION);
     headerCommand.add_argument("token")

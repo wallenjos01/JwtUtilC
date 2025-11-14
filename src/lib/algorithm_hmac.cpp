@@ -4,7 +4,7 @@
  * Modified 11/12/25
  *
  * Partial implementation of algorithm.hpp
- * See also algorithm.cpp, algorithm_b64url.cpp, algorithm_sig.cpp, algorithm_enc.cpp
+ * See also algorithm.cpp, algorithm_b64url.cpp, algorithm_sig.cpp, algorithm_crypt.cpp, algorithm_cek.cpp
 */
 
 #include "algorithm.hpp"

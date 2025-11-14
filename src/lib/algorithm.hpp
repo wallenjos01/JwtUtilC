@@ -48,16 +48,16 @@ size_t getKeyLength(JwtCryptAlgorithm algorithm);
 JwtResult generateCek(JwtJsonObject* header, JwtKey* key, JwtAlgorithm algorithm, 
                       JwtCryptAlgorithm crypt, Span<uint8_t>* cek, Span<uint8_t>* encryptedKey);
 
-JwtResult decryptCek(JwtJsonObject* header, Span<uint8_t> encryptedKey, JwtKey* key, 
-                     JwtAlgorithm algorithm, Span<uint8_t> output, size_t* outputLength);
+JwtResult deriveCek(JwtJsonObject* header, Span<uint8_t> encryptedKey, JwtKey* key, 
+                    JwtAlgorithm algorithm, JwtCryptAlgorithm crypt, Span<uint8_t>* output);
 
 JwtResult encryptAndProtect(Span<uint8_t> input, Span<uint8_t> aad, Span<uint8_t> iv, 
                        Span<uint8_t> key, JwtCryptAlgorithm algorithm, 
-                       Span<uint8_t> output, size_t* outputLength, size_t* contentLength);
+                       Span<uint8_t>* output, Span<uint8_t>* tag);
 
 JwtResult decryptAndVerify(Span<uint8_t> cipherText, Span<uint8_t> tag, Span<uint8_t> aad,
                          Span<uint8_t> iv, Span<uint8_t> key, JwtCryptAlgorithm algorithm,
-                         Span<uint8_t> output, size_t* outputLength);
+                         Span<uint8_t>* output);
 }
 
 namespace b64url {

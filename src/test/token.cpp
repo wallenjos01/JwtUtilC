@@ -1,3 +1,4 @@
+#include "jwt/core.h"
 #include "jwt/key.h"
 #include "jwt/result.h"
 #include <gtest/gtest.h>
@@ -10,17 +11,17 @@ constexpr const char* hmacKeyJson = "{\"kty\":\"oct\",\"k\":\"bXktcmVhbGx5LWNvb2
 
 constexpr const char* rsaKeyJson = "{\"kty\": \"RSA\",\"n\": \"6-Z0tsZqaL1DF0oBaz_d1xmX0BNkAJoDlb-ay--kfpwZsBJyketrPiGOvTS0b0t6O1f5C0B0pyRBucsMG5LbC4Kbzk3p_oPOcHOwjnRJ-xuB7CRdFS71VEEuK2bHDk7gqCF6z-EcD-6T9k84t4qSg3yWeDygodH7RICcV0p4cWepxKITKsICULmidic-r6IcWFCkgc7CjTUiZxM72lOumjf8VoUQWXiZ72UPD08LygN0Z-bzlaBUDUsSLl691X5qYtAVeTgrNmDmT7TZN7-9a3qq8wNv2dLnqr1o1NtJjDJvCu5GfL-MNYmVV1SFYL8IWCBonIMA9y6nv-7ndMEaEQ\",\"e\": \"AQAB\",\"d\": \"I5eBxJHrPCJSHRFtZWEdd3bFEP_b9rtGDzH5iQt_JhsnRQmDf8ClTZqCjsmE78XTi2CakrgG4bD2ubGJAiAGLJZoK5hV1bDNVOofmV6yStC7qYVTBf8vxKaQ8LtxDReZjcR_Yx3zvfOhH2iUhhzCPlRt33ZGRiQIZS2CaSkzQui24vgqIPEIZSm5jyMAOgpowD7cbdk8num8FyDMCv-bm0t8UgWKLM9wWjORwM3Q-9gD_Mz_W7_qd6dKdYrF3hvlmeO8Cd2ZrT7JDDIRwwpBOkvzqoM7WoY8Se6MA_AEe0z-HHKcQIPZExoex0ZdlWRsRgx5XDfanTIgmvxFkn6IgQ\",\"p\": \"_cgjJyYqzyV-q7gvCc39TRybeCrIy8NtPzxeEcYJz0PWP4HzZcFRkBeaYl3EExoAYOsFoIJ97LG8PjfwsIKqwD6IsUv5DJwjuJjr5dGkGgkX5cqyVk-nxaK8EJxhWw-MniVh5Njdw71D4ODEMBw8UrMvVlX9yaIPcOZud5VjHKM\",\"q\": \"7fZOh_NRXazVGBDoEVVbAKqG3U4tdb-srUsZVAa7M_lolSC9rJrNotypOdYBz9eLx46qvozwiLcPMAF6mRtF5g5_KQCsYxXgo-b2keuYoMfykGG3reVCkXUVfQYKsosboW3QgXSn9J0Oj_lUjorhHO7dNASf9v6hV6Y3hDPEBbs\",\"dp\": \"87W2zGnCwprnQlDmGyxODDdktcmges15pDh8veTIlto2bVaGPzme8hk4kS4qlY1qv6fzB2lJNHyaocVmxps1Dtj-vASRbqKjSyrPnyvrw3ToFizJhkmIfCsDH5CNjb0o9NZBZFs-3DJtdQ9kWC9FXsXkt6xsw6111p3zh7NWMrE\",\"dq\": \"v5dWd0NCuadUEwJZtssAcDLcTwaIt4tR3lze0bZxt1ESES_BR12EP6JmZfiWkN883blSZAVaDNlG0yH9sZQx3R7C5yJxqX2N1qk40RfdVWZnODRVDR_PTwnz-SuKJWK3JmwiOnjQWbSyat0WZYYP5Zm0ZBNtMBKnmMhtXnXHV80\",\"qi\": \"dQ52omzYWpjz2thXU8KSO_6acJHmAwD7gM3j3YJp6l4wgOvEi2OHXDvgeiaSi3CsA15cXwKQB4qPzwh8JXoXs51CmDcDZU4D1tan24a6lUwGbanJEysKZCNont4Rtj01DzVj4Xzab_oldYMYt4rzqN6ru-QsikOy1Fr8-f_Aq_M\"}";
 
-
 constexpr const char* ecKeyJson =
         "{\"kty\":\"EC\","
         "\"crv\":\"P-256\","
         "\"x\":\"rrwq-1lwloY2pjJQE_oapmXKOEMkDSu59hU3ROE_1vo\","
         "\"y\":\"I1MuspBp4orW2uIhF3WGcShGr2xT8R59argUv4UbwLE\","
-        "\"d\":\"KL78nYZ0H75mAjxj6Bu8rw6cB9aW7OehdvAXOM5TOUA\","  
-        "\"use\":\"sig\","
-        "\"kid\":\"1\"}";
+        "\"d\":\"KL78nYZ0H75mAjxj6Bu8rw6cB9aW7OehdvAXOM5TOUA\""  
+        "}";
 
 constexpr const char* aesKeyJson = "{\"kty\":\"oct\",\"k\":\"pkgQf7kLM97PkX8oG2meBN-AxUxVVLgBNErbmGJvedk\"}";
+
+constexpr const char* password = "password";
 
 TEST(Token, GenerateUnprotected) {
 
@@ -35,21 +36,26 @@ TEST(Token, GenerateUnprotected) {
     ASSERT_STREQ(str.data, "eyJ0eXAiOiJqd3QiLCJhbGciOiJub25lIn0.eyJ0ZXN0Ijo0Mn0.");
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(str, nullptr, &token, JWT_VERIFY_FLAG_ALLOW_UNPROTECTED));
 
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&str);
+
 }
 
 TEST(Token, GenerateHS256) {
 
-    JwtJsonElement element;
+    JwtJsonElement element = {};
     jwtReadJsonString(&element, hmacKeyJson, strlen(hmacKeyJson));
 
-    JwtKey key;
+    JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
-    JwtJsonObject obj;
+    JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetInt(&obj, "test", 42);
 
-    JwtString mac;
+    JwtString mac = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateSignedToken(&obj, &key, JWT_ALGORITHM_HS256, &mac));
 
     ASSERT_STREQ(mac.data, "eyJ0eXAiOiJqd3QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZXN0Ijo0Mn0.sawwoMaSsTQpYK7UOtmAXmD_NENPpofcb2MF2ZKN6vY");
@@ -57,48 +63,65 @@ TEST(Token, GenerateHS256) {
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(mac, &key, &token, 0));
 
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&mac);
+    jwtKeyDestroy(&key);
+
 }
 
 TEST(Token, GenerateHS384) {
 
-    JwtJsonElement element;
+    JwtJsonElement element = {};
     jwtReadJsonString(&element, hmacKeyJson, strlen(hmacKeyJson));
 
-    JwtKey key;
+    JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
-    JwtJsonObject obj;
+    JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetInt(&obj, "test", 42);
 
-    JwtString mac;
+    JwtString mac = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateSignedToken(&obj, &key, JWT_ALGORITHM_HS384, &mac));
 
     ASSERT_STREQ(mac.data, "eyJ0eXAiOiJqd3QiLCJhbGciOiJIUzM4NCJ9.eyJ0ZXN0Ijo0Mn0.XGh9V7_4aZhToibg7_O6STvudtGr24X0Y0vTPrN2iXgJXliSBi-5-1yr-0c9pgrP");
 
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(mac, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&mac);
+    jwtKeyDestroy(&key);
 }
 
 TEST(Token, GenerateHS512) {
 
-    JwtJsonElement element;
+    JwtJsonElement element = {};
     jwtReadJsonString(&element, hmacKeyJson, strlen(hmacKeyJson));
 
-    JwtKey key;
+    JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
-    JwtJsonObject obj;
+    JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetInt(&obj, "test", 42);
 
-    JwtString mac;
+    JwtString mac = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateSignedToken(&obj, &key, JWT_ALGORITHM_HS512, &mac));
 
     ASSERT_STREQ(mac.data, "eyJ0eXAiOiJqd3QiLCJhbGciOiJIUzUxMiJ9.eyJ0ZXN0Ijo0Mn0.mHUKFz9gO_AAsegJVOwwDSa1U2GDCWMMjHgWjElbHPR0sTg5NKot42h-wWu2_g07sHxcbSTtHP3A4N5BDx3B-g");
 
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(mac, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&mac);
+    jwtKeyDestroy(&key);
 }
 
 
@@ -110,6 +133,7 @@ TEST(Token, GenerateRS256) {
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
@@ -122,6 +146,11 @@ TEST(Token, GenerateRS256) {
 
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(sig, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&sig);
+    jwtKeyDestroy(&key);
 }
 
 TEST(Token, GenerateRS384) {
@@ -132,6 +161,7 @@ TEST(Token, GenerateRS384) {
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
@@ -144,6 +174,11 @@ TEST(Token, GenerateRS384) {
 
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(sig, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&sig);
+    jwtKeyDestroy(&key);
 }
 
 TEST(Token, GenerateRS512) {
@@ -154,6 +189,7 @@ TEST(Token, GenerateRS512) {
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
@@ -167,6 +203,11 @@ TEST(Token, GenerateRS512) {
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(sig, &key, &token, 0));
 
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&sig);
+    jwtKeyDestroy(&key);
+
 }
 
 TEST(Token, GeneratePS256) {
@@ -176,6 +217,7 @@ TEST(Token, GeneratePS256) {
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
@@ -186,6 +228,11 @@ TEST(Token, GeneratePS256) {
 
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(sig, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&sig);
+    jwtKeyDestroy(&key);
 }
 
 TEST(Token, GeneratePS384) {
@@ -196,6 +243,7 @@ TEST(Token, GeneratePS384) {
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
@@ -206,6 +254,11 @@ TEST(Token, GeneratePS384) {
 
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(sig, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&sig);
+    jwtKeyDestroy(&key);
 }
 
 TEST(Token, GeneratePS512) {
@@ -216,6 +269,7 @@ TEST(Token, GeneratePS512) {
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
@@ -226,23 +280,21 @@ TEST(Token, GeneratePS512) {
 
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(sig, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&sig);
+    jwtKeyDestroy(&key);
 }
 
 TEST(Token, GenerateES256) {
-    const char* keyJson =
-        "{\"kty\":\"EC\","
-        "\"crv\":\"P-256\","
-        "\"x\":\"rrwq-1lwloY2pjJQE_oapmXKOEMkDSu59hU3ROE_1vo\","
-        "\"y\":\"I1MuspBp4orW2uIhF3WGcShGr2xT8R59argUv4UbwLE\","
-        "\"d\":\"KL78nYZ0H75mAjxj6Bu8rw6cB9aW7OehdvAXOM5TOUA\","  
-        "\"use\":\"sig\","
-        "\"kid\":\"1\"}";
 
     JwtJsonElement element = {};
-    jwtReadJsonString(&element, keyJson, strlen(keyJson));
+    jwtReadJsonString(&element, ecKeyJson, strlen(ecKeyJson));
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
@@ -253,6 +305,11 @@ TEST(Token, GenerateES256) {
 
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(sig, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&sig);
+    jwtKeyDestroy(&key);
 }
 
 TEST(Token, GenerateES384) {
@@ -262,6 +319,7 @@ TEST(Token, GenerateES384) {
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
@@ -272,6 +330,11 @@ TEST(Token, GenerateES384) {
 
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(sig, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&sig);
+    jwtKeyDestroy(&key);
 }
 
 TEST(Token, GenerateES512) {
@@ -281,6 +344,7 @@ TEST(Token, GenerateES512) {
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
@@ -291,6 +355,11 @@ TEST(Token, GenerateES512) {
 
     JwtParsedToken token = {};
     ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(sig, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&sig);
+    jwtKeyDestroy(&key);
 }
 
 TEST(Token, ReadHeader) {
@@ -300,6 +369,7 @@ TEST(Token, ReadHeader) {
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
@@ -319,6 +389,11 @@ TEST(Token, ReadHeader) {
     JwtString typ = jwtJsonObjectGetString(&header, "typ"); 
     ASSERT_STREQ(typ.data, "jwt");
 
+    jwtJsonObjectDestroy(&header);
+    jwtStringDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtKeyDestroy(&key);
+
 }
 
 TEST(Token, GenerateDirectA128CBC) {
@@ -328,16 +403,22 @@ TEST(Token, GenerateDirectA128CBC) {
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetInt(&obj, "test", 42);
 
-    JwtString sig = {};
-    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_DIRECT, JWT_CRYPT_ALGORITHM_A128CBC_HS256, &sig));
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_DIRECT, JWT_CRYPT_ALGORITHM_A128CBC_HS256, &enc));
 
     JwtParsedToken token = {};
-    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(sig, &key, &token, 0));
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
 }
 
 TEST(Token, GenerateDirectA256GCM) {
@@ -347,14 +428,404 @@ TEST(Token, GenerateDirectA256GCM) {
 
     JwtKey key = {};
     jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
 
     JwtJsonObject obj = {};
     jwtJsonObjectCreate(&obj);
     jwtJsonObjectSetInt(&obj, "test", 42);
 
-    JwtString sig = {};
-    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_DIRECT, JWT_CRYPT_ALGORITHM_A256GCM, &sig));
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_DIRECT, JWT_CRYPT_ALGORITHM_A256GCM, &enc));
 
     JwtParsedToken token = {};
-    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(sig, &key, &token, 0));
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
 }
+
+TEST(Token, GenerateRSA1_5) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, rsaKeyJson, strlen(rsaKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_RSA1_5, JWT_CRYPT_ALGORITHM_A256CBC_HS512, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtKeyDestroy(&key);
+}
+TEST(Token, GenerateRSA_OAEP) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, rsaKeyJson, strlen(rsaKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_RSA_OAEP, JWT_CRYPT_ALGORITHM_A192GCM, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+TEST(Token, GenerateRSA_OAEP_256) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, rsaKeyJson, strlen(rsaKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_RSA_OAEP_256, JWT_CRYPT_ALGORITHM_A128GCM, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+
+TEST(Token, GenerateA128KW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, aesKeyJson, strlen(aesKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_A128KW, JWT_CRYPT_ALGORITHM_A128GCM, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+TEST(Token, GenerateA192KW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, aesKeyJson, strlen(aesKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_A192KW, JWT_CRYPT_ALGORITHM_A192GCM, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+TEST(Token, GenerateA256KW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, aesKeyJson, strlen(aesKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_A256KW, JWT_CRYPT_ALGORITHM_A256GCM, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+
+TEST(Token, GenerateECDH_ES) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, ecKeyJson, strlen(ecKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_ECDH_ES, JWT_CRYPT_ALGORITHM_A128CBC_HS256, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtKeyDestroy(&key);
+}
+
+TEST(Token, GenerateECDH_ES_A128KW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, ecKeyJson, strlen(ecKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_ECDH_ES_A128KW, JWT_CRYPT_ALGORITHM_A128CBC_HS256, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+
+TEST(Token, GenerateECDH_ES_A192KW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, ecKeyJson, strlen(ecKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_ECDH_ES_A192KW, JWT_CRYPT_ALGORITHM_A192CBC_HS384, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+
+TEST(Token, GenerateECDH_ES_A256KW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, ecKeyJson, strlen(ecKeyJson));
+
+    JwtKey key = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtKeyParse(&key, &element.object));
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_ECDH_ES_A256KW, JWT_CRYPT_ALGORITHM_A256CBC_HS512, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+
+TEST(Token, GenerateA128GCMKW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, aesKeyJson, strlen(aesKeyJson));
+
+    JwtKey key = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtKeyParse(&key, &element.object));
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_A128GCMKW, JWT_CRYPT_ALGORITHM_A256GCM, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+TEST(Token, GenerateA192GCMKW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, aesKeyJson, strlen(aesKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);;
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_A192GCMKW, JWT_CRYPT_ALGORITHM_A192GCM, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtKeyDestroy(&key);
+}
+TEST(Token, GenerateA256GCMKW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, aesKeyJson, strlen(aesKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_A256GCMKW, JWT_CRYPT_ALGORITHM_A128GCM, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+
+TEST(Token, GeneratePBES_HS256_A128KW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, aesKeyJson, strlen(aesKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_PBES_HS256_A128KW, JWT_CRYPT_ALGORITHM_A256GCM, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+
+TEST(Token, GeneratePBES_HS384_A192KW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, aesKeyJson, strlen(aesKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_PBES_HS384_A192KW, JWT_CRYPT_ALGORITHM_A256GCM, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+
+TEST(Token, GeneratePBES_HS512_A256KW) {
+
+    JwtJsonElement element = {};
+    jwtReadJsonString(&element, aesKeyJson, strlen(aesKeyJson));
+
+    JwtKey key = {};
+    jwtKeyParse(&key, &element.object);
+    jwtJsonElementDestroy(&element);
+
+    JwtJsonObject obj = {};
+    jwtJsonObjectCreate(&obj);
+    jwtJsonObjectSetInt(&obj, "test", 42);
+
+    JwtString enc = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtCreateEncryptedToken(&obj, &key, JWT_ALGORITHM_PBES_HS512_A256KW, JWT_CRYPT_ALGORITHM_A256GCM, &enc));
+
+    JwtParsedToken token = {};
+    ASSERT_EQ(JWT_RESULT_SUCCESS, jwtVerifyToken(enc, &key, &token, 0));
+
+    jwtParsedTokenDestroy(&token);
+    jwtJsonObjectDestroy(&obj);
+    jwtStringDestroy(&enc);
+    jwtKeyDestroy(&key);
+}
+

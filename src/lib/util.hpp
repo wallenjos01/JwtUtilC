@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <openssl/core.h>
+#include <ostream>
 #include <string>
 
 #ifdef NDEBUG
@@ -14,6 +15,30 @@
 #define JWT_REPORT_ERROR(error) \
     std::cerr << error << " @" << __FILE__ << ":" << __LINE__ << "\n";
 #endif
+
+inline char hexDigit(uint8_t nybble) {
+    if (nybble < 10) {
+        return '0' + nybble;
+    }
+    if (nybble < 16) {
+        return 'a' + nybble - 10;
+    }
+    return 'x';
+}
+
+inline std::string toHex(const uint8_t* data, size_t length) {
+
+    std::string out = "";
+    for (auto i = 0; i < length; i++) {
+        uint8_t byte = data[i];
+        uint8_t n1 = byte >> 4;
+        uint8_t n2 = byte & 0x0F;
+        out += hexDigit(n1);
+        out += hexDigit(n2);
+    }
+
+    return out;
+}
 
 template <typename T> struct Span {
     T* data;
@@ -36,6 +61,7 @@ template <typename T> struct Span {
         }
         data = nullptr;
         length = 0;
+        owned = false;
     }
 
     Span& operator=(const Span& other) {
@@ -64,31 +90,29 @@ template <typename T> struct Span {
     }
 
     T& operator[](size_t index) { return data[index]; }
+
+    static Span wrap(uint8_t* buffer, size_t length) {
+        Span out = {};
+        out.data = buffer;
+        out.length = length;
+        out.owned = false;
+        return out;
+    }
+    static Span allocate(size_t length) {
+        return Span(new T[length], length);
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const Span& obj) {
+        for(auto i = 0 ; i < obj.length ; i++) {
+            uint8_t byte = obj.data[i];
+            uint8_t n1 = byte >> 4;
+            uint8_t n2 = byte & 0x0F;
+            os << hexDigit(n1);
+            os << hexDigit(n2);
+        }
+        return os;
+    }
 };
-
-inline char hexDigit(uint8_t nybble) {
-    if (nybble < 10) {
-        return '0' + nybble;
-    }
-    if (nybble < 16) {
-        return 'a' + nybble - 10;
-    }
-    return 'x';
-}
-
-inline std::string toHex(const uint8_t* data, size_t length) {
-
-    std::string out = "";
-    for (auto i = 0; i < length; i++) {
-        uint8_t byte = data[i];
-        uint8_t n1 = byte >> 4;
-        uint8_t n2 = byte & 0x0F;
-        out += hexDigit(n1);
-        out += hexDigit(n2);
-    }
-
-    return out;
-}
 
 inline void printOsslParams(OSSL_PARAM* param) {
     while(param->key != nullptr) {

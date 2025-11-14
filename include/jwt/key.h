@@ -254,6 +254,14 @@ JwtResult jwtKeyGenerateOct(JwtKey* out, size_t bytes);
 JwtResult jwtKeyGenerateEc(JwtKey* out, JwtEcCurve curve);
 
 /**
+ * @brief Creates a new octet sequence key for AES or HMAC
+ * @param out Where to store the generated key.
+ * @param data The key data.
+ * @param length The number of bytes in the key
+ */
+JwtResult jwtKeyCreateOct(JwtKey* out, const void* data, size_t length);
+
+/**
  * Attempts to parse an EC curve by name
  */
 JwtResult jwtCurveParse(JwtEcCurve* out, JwtString name);

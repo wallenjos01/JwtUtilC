@@ -397,3 +397,19 @@ JwtResult jwtKeyGenerateOct(JwtKey* key, size_t length) {
 
     return JWT_RESULT_SUCCESS;
 }
+
+
+JwtResult jwtKeyCreateOct(JwtKey* key, const void* data, size_t length) {
+
+    if(length == 0) {
+        return JWT_RESULT_ILLEGAL_ARGUMENT;
+    }
+
+    Span<uint8_t>* span = new Span<uint8_t>(new uint8_t[length], length);
+    memcpy(span->data, data, length);
+
+    key->keyData = span;
+    key->type = JWT_KEY_TYPE_OCTET_SEQUENCE;
+
+    return JWT_RESULT_SUCCESS;
+}

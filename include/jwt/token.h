@@ -50,6 +50,9 @@ JwtResult jwtCreateSignedToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm
 JwtResult jwtCreateEncryptedToken(JwtJsonObject* payload, JwtKey* key, JwtAlgorithm algorithm, JwtCryptAlgorithm crypt, JwtString* out);
 
 
+/**
+ * Reads the token's header to the given JSON object
+ */
 JwtResult jwtReadTokenHeader(JwtString token, JwtJsonObject* out);
 
 
@@ -71,7 +74,8 @@ void jwtParsedTokenDestroy(JwtParsedToken* token);
 
 JwtResult jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, JwtVerifyFlags flags);
 
-JwtResult jwtVerifyTokenWithSet(JwtString token, JwtKey* key, JwtParsedToken* out, JwtVerifyFlags flags);
+JwtResult jwtVerifyTokenWithSet(JwtString token, JwtKeySet* keys, JwtParsedToken* out, JwtVerifyFlags flags);
+
 
 
 #ifdef __cplusplus

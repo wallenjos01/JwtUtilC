@@ -160,17 +160,15 @@ JwtResult writeEncryptedToken(JwtJsonObject* header, JwtJsonObject* payload, Jwt
     Span<uint8_t> payloadData = Span<uint8_t>(static_cast<uint8_t*>(jwtListReclaim(payloadJson)), payloadLen);
     jwtWriterClose(&payloadWriter);
 
-    size_t outputLength = 0;
-    JWT_CHECK(jwt::enc::encryptAndProtect(payloadData, aadData, iv, cek, crypt, {}, &outputLength, nullptr));
 
-    size_t contentLength = 0;
-    Span<uint8_t> cipherText = Span<uint8_t>(new uint8_t[outputLength], outputLength);
-    JWT_CHECK(jwt::enc::encryptAndProtect(payloadData, aadData, iv, cek, crypt, cipherText, &outputLength, &contentLength));
+    Span<uint8_t> cipherText = {};
+    Span<uint8_t> tag = {};
+    JWT_CHECK(jwt::enc::encryptAndProtect(payloadData, aadData, iv, cek, crypt, &cipherText, &tag));
     
-    JWT_CHECK(jwt::b64url::encode(cipherText.data, contentLength, out));
+    JWT_CHECK(jwt::b64url::encode(cipherText.data, cipherText.length, out));
     jwtWriterWrite(out, ".", 1, nullptr);
 
-    JWT_CHECK(jwt::b64url::encode(cipherText.data + contentLength, outputLength - contentLength, out));
+    JWT_CHECK(jwt::b64url::encode(tag.data, tag.length, out));
 
     return JWT_RESULT_SUCCESS;
 }
@@ -336,7 +334,7 @@ void jwtParsedTokenDestroy(JwtParsedToken *token) {
 
 }
 
-JwtResult jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, JwtVerifyFlags flags) {
+JwtResult jwtVerifyToken(JwtString token, JwtKey *key, JwtParsedToken *out, JwtVerifyFlags flags) {
 
     size_t firstDot;
     size_t lastDot;
@@ -389,25 +387,13 @@ JwtResult jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, JwtV
         aad.data = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(token.data));
         aad.length = firstDot;
 
-        Span<uint8_t> keyData;
-        if(out->algorithm == JWT_ALGORITHM_DIRECT) {
-            if(key->type != JWT_KEY_TYPE_OCTET_SEQUENCE) {
-                return JWT_RESULT_INVALID_KEY_TYPE;
-            }
-            if(key->operations != 0 && (key->operations & JWT_KEY_OP_DECRYPT) == 0) {
-                return JWT_RESULT_INVALID_KEY_OPERATION;
-            }
-            keyData = *static_cast<Span<uint8_t>*>(key->keyData);
-        } else {
-            Span<uint8_t> encryptedKey = {};
+        Span<uint8_t> encryptedKey = {};
+        if(dots[1] - dots[0] > 1) {
             JWT_CHECK(jwt::b64url::decodeNew(token.data + dots[0] + 1, dots[1] - dots[0] - 1, &encryptedKey));
-
-            size_t outputLength = 0;
-            JWT_CHECK(jwt::enc::decryptCek(&out->header, encryptedKey, key, out->algorithm, {}, &outputLength));
-            
-            keyData = Span<uint8_t>(new uint8_t[outputLength], outputLength);
-            JWT_CHECK(jwt::enc::decryptCek(&out->header, encryptedKey, key, out->algorithm, keyData, &keyData.length));
         }
+
+        Span<uint8_t> cek = {};
+        JWT_CHECK(jwt::enc::deriveCek(&out->header, encryptedKey, key, out->algorithm, crypt, &cek));
 
         Span<uint8_t> iv = {};
         JWT_CHECK(jwt::b64url::decodeNew(token.data + dots[1] + 1, dots[2] - dots[1] - 1, &iv));
@@ -418,15 +404,11 @@ JwtResult jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, JwtV
         Span<uint8_t> tag = {};
         JWT_CHECK(jwt::b64url::decodeNew(token.data + lastDot + 1, token.length - lastDot - 1, &tag));
 
-        size_t payloadLen = 0;
-    
-        jwt::enc::decryptAndVerify(cipherText, tag, aad, iv, keyData, crypt, {}, &payloadLen);
+        Span<uint8_t> decodedPayload = {};
+        JWT_CHECK(jwt::enc::decryptAndVerify(cipherText, tag, aad, iv, cek, crypt, &decodedPayload));
 
-        Span<uint8_t> decodedPayload = Span<uint8_t>(new uint8_t[payloadLen], payloadLen);
-        JWT_CHECK(jwt::enc::decryptAndVerify(cipherText, tag, aad, iv, keyData, crypt, decodedPayload, &payloadLen));
-
-        JwtJsonElement payload;
-        JWT_CHECK(jwtReadJsonString(&payload, reinterpret_cast<char*>(decodedPayload.data), payloadLen));
+        JwtJsonElement payload = {};
+        JWT_CHECK(jwtReadJsonString(&payload, reinterpret_cast<char*>(decodedPayload.data), decodedPayload.length));
 
         if(payload.type != JWT_JSON_ELEMENT_TYPE_OBJECT) {
             jwtJsonElementDestroy(&payload);
@@ -524,6 +506,6 @@ JwtResult jwtVerifyToken(JwtString token, JwtKey* key, JwtParsedToken* out, JwtV
 }
 
 
-JwtResult jwtVerifyTokenWithSet(JwtString token, JwtKey* key, JwtParsedToken* out, JwtVerifyFlags flags) {
+JwtResult jwtVerifyTokenWithSet(JwtString token, JwtKeySet* key, JwtParsedToken* out, JwtVerifyFlags flags) {
     return JWT_RESULT_UNIMPLEMENTED;
 }

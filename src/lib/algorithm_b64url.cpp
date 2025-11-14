@@ -4,7 +4,7 @@
  * Modified 11/12/25
  *
  * Partial implementation of algorithm.hpp
- * See also algorithm.cpp, algorithm_hmac.cpp, algorithm_sig.cpp, algorithm_enc.cpp
+ * See also algorithm.cpp, algorithm_hmac.cpp, algorithm_sig.cpp, algorithm_crypt.cpp, algorithm_cek.cpp
 */
 
 #include "algorithm.hpp"
@@ -184,12 +184,13 @@ JwtResult jwt::b64url::encodeString(const void *data, size_t dataLength, JwtStri
 
     size_t encodedLength = getEncodedLength(dataLength);
 
-    char* stringData = new char[encodedLength + 1];
+    char* stringData = new char[encodedLength + 1]{};
     string->data = stringData;
     string->length = encodedLength;
 
     JwtWriter writer = {};
     JWT_CHECK(jwtWriterCreateForBuffer(&writer, stringData, encodedLength));
+    stringData[encodedLength] = 0;
 
     JwtResult result = encode(data, dataLength, writer);
     jwtWriterClose(&writer);
@@ -199,6 +200,10 @@ JwtResult jwt::b64url::encodeString(const void *data, size_t dataLength, JwtStri
 
 JwtResult jwt::b64url::decodeNew(const void* encoded, size_t encodedLength, Span<uint8_t> *output) {
 
+    if(encodedLength == 0 || encoded == nullptr) {
+        return JWT_RESULT_ILLEGAL_ARGUMENT;
+    }
+
     size_t decodedLength = getDataLength(encodedLength);
     output->data = new uint8_t[decodedLength];
     output->length = decodedLength;
@@ -206,8 +211,8 @@ JwtResult jwt::b64url::decodeNew(const void* encoded, size_t encodedLength, Span
 
     JwtResult result = JWT_RESULT_SUCCESS;
 
-    JwtWriter writer;
-    JWT_CHECK_GOTO(jwtWriterCreateForBuffer(&writer, output->data, output->length), result, cleanup);
+    JwtWriter writer = {};
+    JWT_CHECK(jwtWriterCreateForBuffer(&writer, output->data, output->length));
 
     result = decode(encoded, encodedLength, writer);
 
