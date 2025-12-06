@@ -98,6 +98,9 @@ int main(int argc, char** argv) {
         .help("The type of key. One of: 'RSA', 'EC', 'oct'")
         .choices("RSA", "EC", "oct")
         .nargs(1);
+    keyCommand.add_argument("algorithm")
+        .help("The algorithm this key is valid for")
+        .nargs(1);
     keyCommand.add_argument("-l", "--length")
         .help("The number of bytes in the key")
         .scan<'i', uint64_t>();

@@ -154,6 +154,93 @@ JwtResult jwtKeyTypeParse(JwtKeyType* type, JwtString name) {
     }
 }
 
+JwtKeyType jwtKeyTypeForAlgorithm(JwtAlgorithm algorithm) {
+    switch(algorithm) {
+        case JWT_ALGORITHM_UNKNOWN:
+        case JWT_ALGORITHM_NONE:
+            return JWT_KEY_TYPE_UNKNOWN;
+        case JWT_ALGORITHM_HS256:
+        case JWT_ALGORITHM_HS384:
+        case JWT_ALGORITHM_HS512:
+        case JWT_ALGORITHM_A128KW:
+        case JWT_ALGORITHM_A192KW:
+        case JWT_ALGORITHM_A256KW:
+        case JWT_ALGORITHM_DIRECT:
+        case JWT_ALGORITHM_A128GCMKW:
+        case JWT_ALGORITHM_A192GCMKW:
+        case JWT_ALGORITHM_A256GCMKW:
+        case JWT_ALGORITHM_PBES_HS256_A128KW:
+        case JWT_ALGORITHM_PBES_HS384_A192KW:
+        case JWT_ALGORITHM_PBES_HS512_A256KW:
+            return JWT_KEY_TYPE_OCTET_SEQUENCE;
+        case JWT_ALGORITHM_RS256:
+        case JWT_ALGORITHM_RS384:
+        case JWT_ALGORITHM_RS512:
+        case JWT_ALGORITHM_PS256:
+        case JWT_ALGORITHM_PS384:
+        case JWT_ALGORITHM_PS512:
+        case JWT_ALGORITHM_RSA1_5:
+        case JWT_ALGORITHM_RSA_OAEP:
+        case JWT_ALGORITHM_RSA_OAEP_256:
+            return JWT_KEY_TYPE_RSA;
+        case JWT_ALGORITHM_ES256:
+        case JWT_ALGORITHM_ES384:
+        case JWT_ALGORITHM_ES512:
+        case JWT_ALGORITHM_ECDH_ES:
+        case JWT_ALGORITHM_ECDH_ES_A128KW:
+        case JWT_ALGORITHM_ECDH_ES_A192KW:
+        case JWT_ALGORITHM_ECDH_ES_A256KW:
+            return JWT_KEY_TYPE_ELLIPTIC_CURVE;
+    }
+}
+
+size_t jwtGetMinKeyLengthForAlgorithm(JwtAlgorithm algorithm) {
+    switch(algorithm) {
+        case JWT_ALGORITHM_UNKNOWN:
+        case JWT_ALGORITHM_NONE:
+            return 0;
+        case JWT_ALGORITHM_PBES_HS256_A128KW:
+        case JWT_ALGORITHM_PBES_HS384_A192KW:
+        case JWT_ALGORITHM_PBES_HS512_A256KW:
+            return 1;
+        case JWT_ALGORITHM_A128KW:
+        case JWT_ALGORITHM_A128GCMKW:
+            return 16;
+        case JWT_ALGORITHM_A192KW:
+        case JWT_ALGORITHM_A192GCMKW:
+            return 24;
+        case JWT_ALGORITHM_HS256:
+        case JWT_ALGORITHM_A256KW:
+        case JWT_ALGORITHM_A256GCMKW:
+            return 32;
+        case JWT_ALGORITHM_HS384:
+            return 48;
+        case JWT_ALGORITHM_HS512:
+            return 64;
+        case JWT_ALGORITHM_DIRECT:
+            return 16;
+        case JWT_ALGORITHM_RS256:
+        case JWT_ALGORITHM_RS384:
+        case JWT_ALGORITHM_RS512:
+        case JWT_ALGORITHM_PS256:
+        case JWT_ALGORITHM_PS384:
+        case JWT_ALGORITHM_PS512:
+        case JWT_ALGORITHM_RSA1_5:
+        case JWT_ALGORITHM_RSA_OAEP:
+        case JWT_ALGORITHM_RSA_OAEP_256:
+            return 256;
+        case JWT_ALGORITHM_ES256:
+        case JWT_ALGORITHM_ES384:
+        case JWT_ALGORITHM_ES512:
+        case JWT_ALGORITHM_ECDH_ES:
+        case JWT_ALGORITHM_ECDH_ES_A128KW:
+        case JWT_ALGORITHM_ECDH_ES_A192KW:
+        case JWT_ALGORITHM_ECDH_ES_A256KW:
+            return 0;
+    }
+
+}
+
 JwtResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj) {
 
     JwtString kty = jwtJsonObjectGetString(obj, "kty");
@@ -191,6 +278,8 @@ JwtResult jwtKeyParse(JwtKey* key, JwtJsonObject* obj) {
         return jwt::parseRsaKey(key, obj);
     case JWT_KEY_TYPE_OCTET_SEQUENCE:
         return jwt::parseOctKey(key, obj);
+    default:
+        return JWT_RESULT_INVALID_KEY_TYPE;
     }
 
     return JWT_RESULT_SUCCESS;
@@ -209,6 +298,7 @@ void jwtKeyDestroy(JwtKey* key) {
         return;
     case JWT_KEY_TYPE_OCTET_SEQUENCE:
         delete static_cast<Span<uint8_t>*>(key->keyData);
+    default:
         return;
     }
 }

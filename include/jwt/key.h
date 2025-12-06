@@ -67,6 +67,7 @@ enum JwtCryptAlgorithm {
  * @see https://www.rfc-editor.org/rfc/rfc7517.html
  */
 enum JwtKeyType : uint8_t {
+    JWT_KEY_TYPE_UNKNOWN,
     JWT_KEY_TYPE_ELLIPTIC_CURVE,
     JWT_KEY_TYPE_RSA,
     JWT_KEY_TYPE_OCTET_SEQUENCE,
@@ -215,6 +216,17 @@ inline bool jwtIsEncryptionAlgorithm(JwtAlgorithm algorithm) {
  * Attempts to parse an EC curve by name
  */
 JwtResult jwtKeyTypeParse(JwtKeyType* out, JwtString name);
+
+/**
+ * Gets the key type associated with the given algorithm
+ */
+JwtKeyType jwtKeyTypeForAlgorithm(JwtAlgorithm algorithm);
+
+/**
+ * Gets the minimum key length for the given algorithm
+ */
+size_t jwtGetMinKeyLengthForAlgorithm(JwtAlgorithm algorithm);
+
 
 /**
  * @brief Attempts to parse a JWK from the given JSON object
