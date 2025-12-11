@@ -26,11 +26,6 @@
 
 namespace {
 
-// JwtResult parseKeyType(JwtKeyType* type, JwtString str) {
-//
-
-// }
-
 const char* getKeyTypeName(JwtKeyType type) {
     switch(type) {
         case JWT_KEY_TYPE_ELLIPTIC_CURVE:
@@ -158,6 +153,7 @@ JwtKeyType jwtKeyTypeForAlgorithm(JwtAlgorithm algorithm) {
     switch(algorithm) {
         case JWT_ALGORITHM_UNKNOWN:
         case JWT_ALGORITHM_NONE:
+        default:
             return JWT_KEY_TYPE_UNKNOWN;
         case JWT_ALGORITHM_HS256:
         case JWT_ALGORITHM_HS384:
@@ -198,6 +194,7 @@ size_t jwtGetMinKeyLengthForAlgorithm(JwtAlgorithm algorithm) {
     switch(algorithm) {
         case JWT_ALGORITHM_UNKNOWN:
         case JWT_ALGORITHM_NONE:
+        default:
             return 0;
         case JWT_ALGORITHM_PBES_HS256_A128KW:
         case JWT_ALGORITHM_PBES_HS384_A192KW:
